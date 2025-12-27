@@ -1,0 +1,52 @@
+# Core Dependencies
+requests>=2.31.0
+python-dotenv>=1.0.0
+aiohttp>=3.9.0
+asyncio>=3.4.3
+
+# Data Processing
+pandas>=2.1.0
+numpy>=1.24.0
+openpyxl>=3.1.0
+xlsxwriter>=3.1.0
+
+# API & HTTP
+urllib3>=2.0.0
+certifi>=2023.7.22
+sodapy>=2.2.0
+
+# CLI & UI
+rich>=13.7.0
+click>=8.1.7
+colorama>=0.4.6
+tqdm>=4.66.0
+questionary>=2.0.1
+
+# Data Validation
+jsonschema>=4.20.0
+pydantic>=2.5.0
+
+# Rate Limiting
+ratelimit>=2.2.1
+backoff>=2.2.1
+
+# Logging
+loguru>=0.7.2
+
+# Utilities
+python-dateutil>=2.8.2
+pytz>=2023.3
+
+# Testing
+pytest>=7.4.0
+pytest-asyncio>=0.21.0
+pytest-cov>=4.1.0
+pytest-mock>=3.12.0
+responses>=0.23.0
+
+# Performance
+ujson>=5.8.0
+orjson>=3.9.0
+
+# File handling
+chardet>=5.2.0

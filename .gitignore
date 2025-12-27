@@ -1,0 +1,138 @@
+# Texas Data Scraper - .gitignore
+
+# Environment variables
+.env
+*.env
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual Environment
+venv/
+ENV/
+env/
+.venv
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# Export files (data outputs)
+exports/socrata/*.json
+exports/socrata/*.csv
+exports/socrata/*.xlsx
+exports/comptroller/*.json
+exports/comptroller/*.csv
+exports/comptroller/*.xlsx
+exports/combined/*.json
+exports/combined/*.csv
+exports/combined/*.xlsx
+exports/deduplicated/*.json
+exports/deduplicated/*.csv
+exports/deduplicated/*.xlsx
+
+# Keep directory structure
+!exports/.gitkeep
+!exports/socrata/.gitkeep
+!exports/comptroller/.gitkeep
+!exports/combined/.gitkeep
+!exports/deduplicated/.gitkeep
+
+# Logs
+logs/*.log
+logs/*.zip
+!logs/.gitkeep
+
+# Cache
+.cache/
+*.cache
+__cache__/
+.pytest_cache/
+
+# Coverage
+htmlcov/
+.tox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis/
+
+# Testing
+.pytest_cache/
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Documentation
+docs/_build/
+site/
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+*.old
+*.orig
+
+# OS
+Thumbs.db
+.DS_Store
+desktop.ini
+
+# GPU specific
+*.npy
+*.npz
+
+# Large data files
+*.parquet
+*.feather
+*.h5
+*.hdf5
+
+# Compressed files
+*.zip
+*.tar.gz
+*.tgz
+*.rar
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+
+# API response cache
+api_cache/
+response_cache/

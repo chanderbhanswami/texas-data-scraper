@@ -1,0 +1,36 @@
+# GPU Acceleration Dependencies for CUDA/cuDNN
+
+# Include base requirements
+-r requirements.txt
+
+# CUDA-enabled libraries
+cupy-cuda11x>=12.0.0  # For CUDA 11.x (adjust based on your CUDA version)
+cupy-cuda12x>=12.0.0  # Uncomment for CUDA 12.x
+
+# GPU-accelerated data processing
+cudf-cu11>=23.10.0  # RAPIDS cuDF for GPU DataFrames
+dask-cudf>=23.10.0  # Distributed GPU computing
+cudf-cu12>=23.10.0  # Uncomment for CUDA 12.x
+
+# GPU-accelerated JSON processing
+rapids-singlecell>=0.9.0
+
+# PyTorch (for additional GPU operations if needed)
+torch>=2.1.0
+
+# Memory management
+numba>=0.58.0
+pynvml>=11.5.0  # NVIDIA Management Library
+
+# Note: Install CUDA Toolkit and cuDNN separately:
+# - CUDA Toolkit: https://developer.nvidia.com/cuda-downloads
+# - cuDNN: https://developer.nvidia.com/cudnn
+# 
+# For RTX 3060, recommended versions:
+# - CUDA 11.8 or 12.x
+# - cuDNN 8.9.x or later
+#
+# Installation order:
+# 1. Install CUDA Toolkit
+# 2. Install cuDNN
+# 3. pip install -r requirements-gpu.txt
