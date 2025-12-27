@@ -242,6 +242,24 @@
 - [x] Changelog
 - [x] License
 
+### Resilience Features (v1.1.0) ✅
+- [x] Progress persistence - resume interrupted downloads
+- [x] Export checksum verification (SHA-256)
+- [x] Data validation and quality reports
+- [x] GPU-accelerated merging and deduplication
+- [x] Module integration (GPU, Validator, Helpers across all scripts)
+- [x] Resume Session menu options in CLI scripts
+- [x] Auto-save on interruption (Ctrl+C or crash)
+
+### Smart Data Handling (v1.2.0) ✅
+- [x] Smart field detection - case-insensitive ID matching (20+ variations)
+- [x] Semantic field normalization (`zipcode` → `zip_code`, etc.)
+- [x] Global auto-deduplication - skips already-scraped records automatically
+- [x] Append-to-existing exports - single consolidated file per dataset
+- [x] Cross-dataset deduplication - works across Socrata datasets
+- [x] `TAXPAYER_ID_FIELDS` - comprehensive field name variations
+- [x] `FIELD_SYNONYMS` - maps field variations to canonical names
+
 ---
 
 ## 🎓 **QUICK START COMMANDS**
@@ -363,7 +381,7 @@ python scripts/api_tester.py
 ║  Documentation: Complete                                 ║
 ║                                                          ║
 ║  Ready For: Production Deployment                        ║
-║  Version: 1.0.0                                          ║
+║  Version: 1.2.0                                          ║
 ║  Date: December 27, 2025                                 ║
 ║                                                          ║
 ╚══════════════════════════════════════════════════════════╝

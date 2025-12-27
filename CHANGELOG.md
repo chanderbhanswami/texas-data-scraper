@@ -5,6 +5,39 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0] - 2025-12-27
+
+### Added
+- **Smart Field Detection** (`src/utils/helpers.py`)
+  - Case-insensitive taxpayer ID field matching
+  - Semantic field normalization (e.g., `zipcode` → `zip_code`)
+  - `TAXPAYER_ID_FIELDS` - 20+ field name variations supported
+  - `FIELD_SYNONYMS` - Maps field variations to canonical names
+  - `normalize_field_name()`, `extract_taxpayer_id_from_record()`
+  - `normalize_record_fields()`, `smart_merge_records()`
+
+- **Global Auto-Deduplication** (Socrata Scraper)
+  - Automatically loads ALL existing exports before scraping
+  - Builds master set of already-scraped taxpayer IDs
+  - Skips records that exist in ANY previous export
+  - Works across multiple datasets automatically
+  - Shows duplicate count during scrape
+
+- **Append-to-Existing Export Mode** (`src/exporters/file_exporter.py`)
+  - New records appended to existing files (not new timestamped files)
+  - Single consolidated file per dataset
+  - `append_json()`, `append_csv()`, `append_excel()` methods
+  - `append_or_create_all_formats()` for all formats at once
+
+### Changed
+- Socrata CLI now auto-filters duplicates on every scrape
+- Fixed filenames per dataset (no timestamps) for consolidated exports
+- Comptroller CLI exports also use append mode
+
+### Technical Details
+- New functions in `helpers.py`: `camel_to_snake()`, `find_taxpayer_id_field()`, `find_matching_fields()`, `get_field_value_by_semantic_name()`
+- Field normalization handles: zip_code, business_name, phone, email, registration_date, status, file_number variations
+
 ## [1.1.0] - 2025-12-27
 
 ### Added

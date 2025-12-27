@@ -86,6 +86,13 @@ A **production-ready, fully-featured** data scraping toolkit with:
 - ✅ GPU-accelerated merging and deduplication
 - ✅ Module integration (GPU, Validator, Helpers across all scripts)
 
+### ✅ Smart Data Handling (v1.2.0)
+- ✅ Smart field detection - case-insensitive ID matching (20+ variations)
+- ✅ Semantic field normalization (`zipcode` → `zip_code`, etc.)
+- ✅ Global auto-deduplication - skips already-scraped records automatically
+- ✅ Append-to-existing exports - single consolidated file per dataset
+- ✅ Cross-dataset deduplication - works across Socrata datasets
+
 ## 📂 Complete File Structure
 
 ```

@@ -20,7 +20,7 @@ if requirements_file.exists():
 
 setup(
     name="texas-data-scraper",
-    version="1.1.0",
+    version="1.2.0",
     author="Chanderbhan Swami",
     author_email="chanderbhanswami29@gmail.com",
     description="Comprehensive toolkit for scraping Texas government data from Socrata and Comptroller APIs",

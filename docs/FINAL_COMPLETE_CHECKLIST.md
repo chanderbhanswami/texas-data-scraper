@@ -192,6 +192,23 @@
 - [x] Complete file list
 - [x] Inline code comments
 
+### ✅ Resilience Features (v1.1.0)
+- [x] Progress persistence - resume interrupted downloads
+- [x] Export checksum verification (SHA-256)
+- [x] Auto-save on Ctrl+C or crash
+- [x] Resume Session menu options
+- [x] Checkpoint interval configuration
+- [x] GPU-accelerated merging and deduplication
+
+### ✅ Smart Data Handling (v1.2.0)
+- [x] Smart field detection (case-insensitive, 20+ variations)
+- [x] Semantic field normalization (`zipcode` → `zip_code`)
+- [x] Global auto-deduplication (skips already-scraped records)
+- [x] Append-to-existing exports (single file per dataset)
+- [x] Cross-dataset deduplication
+- [x] `TAXPAYER_ID_FIELDS` constant for ID variations
+- [x] `FIELD_SYNONYMS` for field name mapping
+
 ---
 
 ## 🔍 VERIFICATION COMMANDS
@@ -352,7 +369,7 @@ This toolkit is ready for:
 
 **Status**: COMPLETE ✅
 **Date**: December 2025
-**Version**: 1.1.0
+**Version**: 1.2.0
 
 ---
 

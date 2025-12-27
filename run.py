@@ -22,7 +22,7 @@ def show_main_menu():
     title = """
     ╔═══════════════════════════════════════════════════════════╗
     ║                                                           ║
-    ║           TEXAS GOVERNMENT DATA SCRAPER v1.0             ║
+    ║           TEXAS GOVERNMENT DATA SCRAPER v1.2             ║
     ║                                                           ║
     ║              Comprehensive Data Extraction Tool          ║
     ║                                                           ║
@@ -239,8 +239,6 @@ def run_full_pipeline():
     
     if not Confirm.ask("\nProceed with Full Pipeline?", default=False):
         return
-    
-    records = IntPrompt.ask("Number of records to process", default=5000)
     
     console.print("\n[bold]Starting Full Pipeline...[/bold]\n")
     

@@ -150,7 +150,21 @@ texas-data-scraper/
 - Export checksum verification
 - Data integrity protection
 
-### 9. Future Pipeline (Planned)
+### 9. Smart Data Handling (v1.2.0)
+- **Smart Field Detection**
+  - Case-insensitive taxpayer ID matching (20+ field variations)
+  - Semantic field normalization (`zipcode` → `zip_code`)
+  - Auto-detection works across all datasets
+- **Global Auto-Deduplication**
+  - Automatically skips already-scraped records
+  - Works across multiple dataset scrapes
+  - Builds master index from all existing exports
+- **Append-to-Existing Exports**
+  - New records appended to existing files
+  - Single consolidated file per dataset
+  - No more multiple timestamped files
+
+### 10. Future Pipeline (Planned)
 - **Phase 1** (Current): Socrata + Comptroller data scraping ✅
 - **Phase 2** (Planned): Google Places API integration for business details
 - **Phase 3** (Planned): Clearbit API for company enrichment (emails, contacts, social media)

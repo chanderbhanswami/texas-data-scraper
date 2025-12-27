@@ -42,6 +42,9 @@ A comprehensive, production-ready toolkit for scraping and processing data from 
 - **Comprehensive Logging**: Detailed logs with rotation and compression
 - **Progress Persistence**: Resume interrupted downloads from checkpoints (v1.1.0)
 - **Export Verification**: SHA-256 checksums for data integrity (v1.1.0)
+- **Smart Field Detection**: Case-insensitive matching with 20+ field variations (v1.2.0)
+- **Global Auto-Deduplication**: Automatically skips already-scraped records (v1.2.0)
+- **Append-to-Existing Exports**: Single consolidated file per dataset (v1.2.0)
 
 ### Data Sources
 - Franchise Tax Permit Holders
