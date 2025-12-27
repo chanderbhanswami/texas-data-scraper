@@ -1,6 +1,7 @@
 """
 Comptroller Scraper Module
 Core scraping logic for Texas Comptroller API
+With progress persistence for resumable operations
 """
 from typing import List, Dict, Optional, Callable
 import asyncio
@@ -8,6 +9,13 @@ from src.api.comptroller_client import ComptrollerClient, AsyncComptrollerClient
 from src.scrapers.gpu_accelerator import get_gpu_accelerator
 from src.utils.logger import get_logger
 from config.settings import comptroller_config, batch_config
+
+# Import progress manager
+try:
+    from src.utils.progress_manager import ProgressManager, get_all_saved_progress
+    PROGRESS_AVAILABLE = True
+except ImportError:
+    PROGRESS_AVAILABLE = False
 
 logger = get_logger(__name__)
 
@@ -400,3 +408,113 @@ class SmartComptrollerScraper(ComptrollerScraper):
                 len(str(v)) for v in self.cache.values()
             )
         }
+    
+    def scrape_with_progress(self,
+                             taxpayer_ids: List[str],
+                             operation_name: str = 'comptroller_scrape',
+                             checkpoint_interval: int = 50,
+                             progress_callback: Optional[Callable] = None) -> List[Dict]:
+        """
+        Scrape with progress persistence for resumable operations
+        
+        Args:
+            taxpayer_ids: List of IDs to process
+            operation_name: Name for this operation (for resume)
+            checkpoint_interval: Save checkpoint every N records
+            progress_callback: Optional callback for progress updates
+            
+        Returns:
+            List of results
+        """
+        if not PROGRESS_AVAILABLE:
+            logger.warning("Progress manager not available, using standard scraping")
+            return self.scrape_taxpayer_details(taxpayer_ids)
+        
+        # Initialize progress manager
+        progress = ProgressManager(operation_name)
+        
+        # Check for saved progress
+        if progress.has_saved_progress():
+            progress.load_progress()
+            remaining_ids = progress.get_remaining_ids()
+            results = progress.get_partial_results()
+            
+            logger.info(f"Resuming from checkpoint: {len(results)} completed, {len(remaining_ids)} remaining")
+        else:
+            # Start fresh
+            progress.start_operation(taxpayer_ids, {'total': len(taxpayer_ids)})
+            remaining_ids = taxpayer_ids
+            results = []
+        
+        try:
+            # Process remaining IDs
+            for i, tid in enumerate(remaining_ids):
+                try:
+                    info = self.client.get_complete_taxpayer_info(tid)
+                    
+                    # Check cache first
+                    if tid in self.cache:
+                        info = self.cache[tid]
+                    else:
+                        info = self.client.get_complete_taxpayer_info(tid)
+                        self.cache[tid] = info
+                    
+                    results.append(info)
+                    progress.mark_completed(tid, info)
+                    
+                    # Progress callback
+                    if progress_callback:
+                        total = len(taxpayer_ids)
+                        done = len(results)
+                        progress_callback(done, total)
+                    
+                    # Checkpoint
+                    if (i + 1) % checkpoint_interval == 0:
+                        progress.save_progress()
+                        logger.debug(f"Checkpoint saved: {len(results)} records")
+                        
+                except Exception as e:
+                    logger.error(f"Error processing {tid}: {e}")
+                    error_result = {
+                        'taxpayer_id': tid,
+                        'error': str(e),
+                        'details': None,
+                        'ftas_records': []
+                    }
+                    results.append(error_result)
+                    progress.mark_completed(tid, error_result)
+            
+            # Clear progress on success
+            progress.clear_progress()
+            logger.info(f"Scrape complete: {len(results)} records")
+            
+        except KeyboardInterrupt:
+            # Save progress on interruption
+            progress.save_progress()
+            logger.warning(f"Interrupted! Progress saved: {len(results)} completed")
+            raise
+        
+        return results
+    
+    def get_saved_progress(self, operation_name: str = 'comptroller_scrape') -> Optional[Dict]:
+        """Get info about saved progress for an operation"""
+        if not PROGRESS_AVAILABLE:
+            return None
+        
+        progress = ProgressManager(operation_name)
+        return progress.get_progress_info()
+    
+    def clear_saved_progress(self, operation_name: str = 'comptroller_scrape') -> bool:
+        """Clear saved progress for an operation"""
+        if not PROGRESS_AVAILABLE:
+            return False
+        
+        progress = ProgressManager(operation_name)
+        return progress.clear_progress()
+    
+    def list_all_saved_progress(self) -> List[Dict]:
+        """List all saved progress sessions"""
+        if not PROGRESS_AVAILABLE:
+            return []
+        
+        return get_all_saved_progress()

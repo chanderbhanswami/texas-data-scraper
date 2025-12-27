@@ -2,6 +2,7 @@
 """
 Comptroller Data Scraper - Interactive CLI
 Fetch detailed taxpayer data from Texas Comptroller API
+With GPU acceleration, caching, and advanced features
 """
 import sys
 import os
@@ -18,9 +19,13 @@ from rich.prompt import Prompt, Confirm
 from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TaskID
 from rich.panel import Panel
 
-from src.api.comptroller_client import ComptrollerClient, AsyncComptrollerClient
+# Use wrapper classes instead of direct API clients
+from src.scrapers.comptroller_scraper import ComptrollerScraper, SmartComptrollerScraper, BulkComptrollerScraper
 from src.exporters.file_exporter import FileExporter
 from src.utils.logger import get_logger
+from src.utils.helpers import clean_taxpayer_id, format_bytes
+from src.processors.data_validator import DataValidator
+from src.utils.progress_manager import get_all_saved_progress
 from config.settings import (
     comptroller_config,
     COMPTROLLER_EXPORT_DIR,
@@ -33,12 +38,14 @@ logger = get_logger(__name__)
 
 
 class ComptrollerScraperCLI:
-    """Interactive CLI for Comptroller data scraping"""
+    """Interactive CLI for Comptroller data scraping with GPU support"""
     
     def __init__(self):
-        self.client = ComptrollerClient()
-        self.async_client = AsyncComptrollerClient()
+        # Use SmartComptrollerScraper wrapper with caching and GPU
+        self.scraper = SmartComptrollerScraper()
+        self.bulk_scraper = BulkComptrollerScraper()
         self.exporter = FileExporter(COMPTROLLER_EXPORT_DIR)
+        self.validator = DataValidator()  # Add validator
         self.last_data = None
         
     def show_banner(self):
@@ -58,6 +65,15 @@ class ComptrollerScraperCLI:
         else:
             console.print("⚠ API Key: Not configured", style="yellow")
             console.print("  Some features may be limited\n", style="yellow")
+        
+        # Show GPU status
+        if self.scraper.gpu.gpu_available:
+            console.print(f"✓ GPU Acceleration: Enabled ({self.scraper.gpu.device_name})", style="green")
+        else:
+            console.print("⚠ GPU Acceleration: Not available (using CPU)", style="yellow")
+        
+        # Show caching status
+        console.print("✓ Smart Caching: Enabled", style="green")
     
     def show_main_menu(self) -> str:
         """Display main menu"""
@@ -69,16 +85,39 @@ class ComptrollerScraperCLI:
         table.add_column("Option", style="cyan", width=4)
         table.add_column("Description", style="white")
         
+        # Auto-detect options
         table.add_row("1", "Process Socrata Export (Auto-detect)")
         table.add_row("2", "Process Socrata Export (Manual path)")
         table.add_row("3", "Batch Process Taxpayer IDs from file")
         table.add_row("", "")
+        
+        # Single lookup
         table.add_row("4", "Single Taxpayer Lookup (details + FTAS)")
         table.add_row("5", "Single Taxpayer - Details Only")
         table.add_row("6", "Single Taxpayer - FTAS Only")
         table.add_row("", "")
-        table.add_row("7", "Export Last Retrieved Data")
-        table.add_row("8", "View Rate Limiter Stats")
+        
+        # Advanced features (NEW)
+        table.add_row("7", "🚀 Enrich Socrata Data Directly")
+        table.add_row("8", "📊 Scrape with Validation (clean IDs)")
+        table.add_row("9", "💾 Scrape with Caching (skip duplicates)")
+        table.add_row("10", "🔍 Search by Business Name (batch)")
+        table.add_row("", "")
+        
+        # Utilities
+        table.add_row("11", "Export Last Retrieved Data")
+        table.add_row("12", "View Rate Limiter Stats")
+        table.add_row("13", "View GPU/Scraper Stats")
+        table.add_row("14", "View Cache Stats")
+        table.add_row("15", "Clear Cache")
+        table.add_row("", "")
+        # Validation options
+        table.add_row("16", "📊 Validate & Clean Data")
+        table.add_row("17", "🧹 View Data Quality Report")
+        table.add_row("", "")
+        # Recovery options
+        table.add_row("18", "🔄 Resume Last Session")
+        table.add_row("19", "🗑 View/Clear Saved Progress")
         table.add_row("", "")
         table.add_row("0", "Exit")
         
@@ -134,13 +173,13 @@ class ComptrollerScraperCLI:
     
     def extract_taxpayer_ids(self, data: list) -> list:
         """
-        Extract taxpayer IDs from Socrata data
+        Extract taxpayer IDs from Socrata data using helpers.clean_taxpayer_id
         
         Args:
             data: Socrata export data
             
         Returns:
-            List of taxpayer IDs
+            List of cleaned taxpayer IDs
         """
         taxpayer_ids = []
         
@@ -158,9 +197,10 @@ class ComptrollerScraperCLI:
         for record in data:
             for field in id_fields:
                 if field in record and record[field]:
-                    tid = str(record[field]).strip()
-                    if tid and tid not in taxpayer_ids:
-                        taxpayer_ids.append(tid)
+                    # Use clean_taxpayer_id from helpers
+                    cleaned_id = clean_taxpayer_id(str(record[field]))
+                    if cleaned_id and cleaned_id not in taxpayer_ids:
+                        taxpayer_ids.append(cleaned_id)
                     break
         
         return taxpayer_ids
@@ -226,74 +266,158 @@ class ComptrollerScraperCLI:
             logger.error(f"Processing error: {e}")
     
     def batch_process_taxpayer_ids(self, taxpayer_ids: list):
-        """Batch process taxpayer IDs"""
+        """Batch process taxpayer IDs using scraper wrapper"""
         console.print(f"\n[bold]Processing {len(taxpayer_ids):,} taxpayers...[/bold]")
+        
+        if self.scraper.gpu.use_gpu:
+            console.print("🚀 GPU acceleration enabled", style="cyan")
         
         # Ask for processing method
         console.print("\nProcessing Method:")
         console.print("1. Synchronous (slower, more stable)")
         console.print("2. Asynchronous (faster, uses concurrency)")
+        console.print("3. With Caching (skip already processed)")
         
-        method = Prompt.ask("Select method", choices=["1", "2"], default="2")
+        method = Prompt.ask("Select method", choices=["1", "2", "3"], default="3")
         
-        if method == "2":
-            # Async processing
-            results = asyncio.run(self._async_batch_process(taxpayer_ids))
-        else:
-            # Sync processing
-            results = self._sync_batch_process(taxpayer_ids)
-        
-        # Store results
-        self.last_data = results
-        
-        # Show summary
-        self.show_processing_summary(results)
-        
-        # Export
-        if Confirm.ask("\nExport results?", default=True):
-            self.export_comptroller_data(results)
-    
-    def _sync_batch_process(self, taxpayer_ids: list) -> list:
-        """Synchronous batch processing"""
-        results = []
-        
-        with Progress(
-            SpinnerColumn(),
-            TextColumn("[progress.description]{task.description}"),
-            BarColumn(),
-            TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
-            TextColumn("({task.completed}/{task.total})"),
-            console=console
-        ) as progress:
-            task = progress.add_task("Processing taxpayers...", total=len(taxpayer_ids))
+        try:
+            if method == "3":
+                # Use cached scraping
+                console.print("\n[bold]Using cached scraping...[/bold]")
+                results = self.scraper.scrape_with_cache(taxpayer_ids, cache_enabled=True)
+            elif method == "2":
+                # Async processing via bulk scraper
+                console.print("\n[bold]Using async processing...[/bold]")
+                results = self.bulk_scraper.bulk_scrape_sync(taxpayer_ids)
+            else:
+                # Sync processing
+                results = self.scraper.scrape_taxpayer_details(taxpayer_ids)
             
-            for taxpayer_id in taxpayer_ids:
-                try:
-                    info = self.client.get_complete_taxpayer_info(taxpayer_id)
-                    results.append(info)
-                except Exception as e:
-                    logger.error(f"Error processing {taxpayer_id}: {e}")
-                    results.append({
-                        'taxpayer_id': taxpayer_id,
-                        'error': str(e),
-                        'details': None,
-                        'ftas_records': []
-                    })
+            # Store results
+            self.last_data = results
+            
+            # Show summary
+            self.show_processing_summary(results)
+            
+            # Export
+            if Confirm.ask("\nExport results?", default=True):
+                self.export_comptroller_data(results)
                 
-                progress.update(task, advance=1)
-        
-        return results
+        except Exception as e:
+            console.print(f"Error: {e}", style="red bold")
+            logger.error(f"Batch processing error: {e}")
     
-    async def _async_batch_process(self, taxpayer_ids: list) -> list:
-        """Asynchronous batch processing"""
-        console.print(f"Using {batch_config.CONCURRENT_REQUESTS} concurrent requests")
+    def enrich_socrata_data(self):
+        """Enrich Socrata data directly (NEW)"""
+        console.print("\n[bold]🚀 Enrich Socrata Data[/bold]")
+        console.print("This will add Comptroller data to your Socrata export\n")
         
-        results = await self.async_client.batch_get_taxpayer_info(
-            taxpayer_ids,
-            max_concurrent=batch_config.CONCURRENT_REQUESTS
-        )
+        files = self.detect_socrata_files()
+        if not files:
+            console.print("⚠ No Socrata export files found", style="yellow")
+            return
         
-        return results
+        selected_file = self.show_file_selector(files)
+        
+        console.print(f"\n[bold]Loading {selected_file.name}...[/bold]")
+        try:
+            socrata_data = self.exporter.auto_load(selected_file)
+            console.print(f"✓ Loaded {len(socrata_data):,} Socrata records", style="green")
+            
+            # Use scraper's enrichment feature
+            console.print("\n[bold]Enriching with Comptroller data...[/bold]")
+            
+            enriched_data = self.scraper.enrich_socrata_data(
+                socrata_data,
+                id_field='taxpayer_number'
+            )
+            
+            console.print(f"✓ Enriched {len(enriched_data):,} records", style="green bold")
+            
+            self.last_data = enriched_data
+            
+            if Confirm.ask("\nExport enriched data?", default=True):
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                base_filename = f"enriched_data_{timestamp}"
+                
+                paths = self.exporter.export_all_formats(enriched_data, base_filename)
+                for fmt, path in paths.items():
+                    console.print(f"✓ Exported {fmt.upper()}: {path}", style="green")
+                    
+        except Exception as e:
+            console.print(f"Error: {e}", style="red bold")
+            logger.error(f"Enrichment error: {e}")
+    
+    def scrape_with_validation(self):
+        """Scrape with ID validation (NEW)"""
+        console.print("\n[bold]📊 Scrape with Validation[/bold]")
+        console.print("Validates and cleans taxpayer IDs before scraping\n")
+        
+        files = self.detect_socrata_files()
+        if not files:
+            console.print("⚠ No Socrata export files found", style="yellow")
+            return
+        
+        selected_file = self.show_file_selector(files)
+        
+        console.print(f"\n[bold]Loading and validating...[/bold]")
+        try:
+            data = self.exporter.auto_load(selected_file)
+            taxpayer_ids = self.extract_taxpayer_ids(data)
+            
+            console.print(f"✓ Extracted {len(taxpayer_ids):,} IDs", style="green")
+            
+            # Use validated scraping
+            results = self.scraper.scrape_with_validation(
+                taxpayer_ids,
+                validate_id=True
+            )
+            
+            self.last_data = results
+            self.show_processing_summary(results)
+            
+            if Confirm.ask("\nExport results?", default=True):
+                self.export_comptroller_data(results)
+                
+        except Exception as e:
+            console.print(f"Error: {e}", style="red bold")
+    
+    def search_by_business_name(self):
+        """Search by business name (NEW)"""
+        console.print("\n[bold]🔍 Search by Business Name[/bold]")
+        
+        names_input = Prompt.ask("Enter business names (comma-separated)")
+        names = [n.strip() for n in names_input.split(",") if n.strip()]
+        
+        if not names:
+            console.print("No names provided", style="yellow")
+            return
+        
+        max_per_name = int(Prompt.ask("Max results per name", default="10"))
+        
+        console.print(f"\n[bold]Searching {len(names)} names...[/bold]")
+        
+        try:
+            results = self.scraper.scrape_by_name(names, max_per_name=max_per_name)
+            
+            total_matches = sum(len(v) for v in results.values())
+            console.print(f"\n✓ Found {total_matches:,} total matches", style="green bold")
+            
+            for name, matches in results.items():
+                console.print(f"  {name}: {len(matches)} matches")
+            
+            # Flatten results
+            all_matches = []
+            for matches in results.values():
+                all_matches.extend(matches)
+            
+            if all_matches:
+                self.last_data = all_matches
+                if Confirm.ask("\nExport results?", default=True):
+                    self.export_comptroller_data(all_matches)
+                    
+        except Exception as e:
+            console.print(f"Error: {e}", style="red bold")
     
     def show_processing_summary(self, results: list):
         """Show processing summary"""
@@ -308,21 +432,21 @@ class ComptrollerScraperCLI:
         table.add_column("Percentage", style="yellow")
         
         table.add_row("Total Processed", str(total), "100%")
-        table.add_row("With Details", str(with_details), f"{with_details/total*100:.1f}%")
-        table.add_row("With FTAS Records", str(with_ftas), f"{with_ftas/total*100:.1f}%")
-        table.add_row("Errors", str(errors), f"{errors/total*100:.1f}%")
+        table.add_row("With Details", str(with_details), f"{with_details/total*100:.1f}%" if total > 0 else "0%")
+        table.add_row("With FTAS Records", str(with_ftas), f"{with_ftas/total*100:.1f}%" if total > 0 else "0%")
+        table.add_row("Errors", str(errors), f"{errors/total*100:.1f}%" if total > 0 else "0%")
         
         console.print("\n")
         console.print(table)
     
     def single_taxpayer_lookup(self):
-        """Single taxpayer complete lookup"""
+        """Single taxpayer complete lookup (terminal only)"""
         taxpayer_id = Prompt.ask("\nEnter Taxpayer ID")
         
         console.print(f"\n[bold]Fetching data for {taxpayer_id}...[/bold]")
         
         try:
-            info = self.client.get_complete_taxpayer_info(taxpayer_id)
+            info = self.scraper.client.get_complete_taxpayer_info(taxpayer_id)
             
             # Display in terminal
             self.display_taxpayer_info(info)
@@ -401,6 +525,251 @@ class ComptrollerScraperCLI:
         
         return flattened
     
+    def show_scraper_stats(self):
+        """Show scraper and GPU statistics"""
+        stats = self.scraper.get_scraper_stats()
+        
+        table = Table(title="Scraper Statistics")
+        table.add_column("Metric", style="cyan")
+        table.add_column("Value", style="green")
+        
+        table.add_row("Client Type", stats['client_type'])
+        table.add_row("GPU Enabled", "✓ Yes" if stats['gpu_enabled'] else "✗ No")
+        table.add_row("GPU Available", "✓ Yes" if stats['gpu_available'] else "✗ No")
+        
+        if stats.get('gpu_memory'):
+            mem = stats['gpu_memory']
+            table.add_row("GPU Memory Used", f"{mem.get('used_mb', 0):.0f} MB")
+            table.add_row("GPU Memory Total", f"{mem.get('total_mb', 0):.0f} MB")
+        
+        console.print("\n")
+        console.print(table)
+    
+    def show_cache_stats(self):
+        """Show cache statistics"""
+        stats = self.scraper.get_cache_stats()
+        
+        table = Table(title="Cache Statistics")
+        table.add_column("Metric", style="cyan")
+        table.add_column("Value", style="green")
+        
+        table.add_row("Cached Items", str(stats['cached_items']))
+        table.add_row("Cache Size", f"{stats['cache_size_bytes'] / 1024:.1f} KB")
+        
+        console.print("\n")
+        console.print(table)
+    
+    def validate_and_clean_data(self):
+        """Validate and clean last retrieved data"""
+        console.print("\n[bold]📊 Validate & Clean Data[/bold]")
+        
+        if not self.last_data:
+            console.print("⚠ No data available. Process some data first.", style="yellow")
+            return
+        
+        console.print(f"\nCleaning {len(self.last_data):,} records...")
+        
+        # Flatten for cleaning
+        flat_data = self.flatten_comptroller_data(self.last_data)
+        
+        # Clean data
+        cleaned_data = self.validator.clean_dataset(flat_data)
+        
+        # Standardize field names
+        console.print("Standardizing field names...")
+        standardized_data = self.validator.standardize_dataset(cleaned_data)
+        
+        # Validate
+        console.print("Validating...")
+        report = self.validator.validate_dataset(standardized_data)
+        
+        console.print(f"\n✓ Cleaned and validated {len(standardized_data):,} records", style="green bold")
+        console.print(f"  Valid: {report['valid_records']:,} ({report['validation_rate']:.1f}%)")
+        console.print(f"  Invalid: {report['invalid_records']:,}")
+        
+        # Export
+        if Confirm.ask("\nExport cleaned data?", default=True):
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            paths = self.exporter.export_all_formats(standardized_data, f"comptroller_cleaned_{timestamp}")
+            for fmt, path in paths.items():
+                console.print(f"✓ Exported {fmt.upper()}: {path}", style="green")
+    
+    def view_data_quality_report(self):
+        """View data quality report for last retrieved data"""
+        console.print("\n[bold]🧹 Data Quality Report[/bold]")
+        
+        if not self.last_data:
+            console.print("⚠ No data available. Process some data first.", style="yellow")
+            return
+        
+        # Flatten for analysis
+        flat_data = self.flatten_comptroller_data(self.last_data)
+        
+        console.print(f"\nAnalyzing {len(flat_data):,} records...")
+        
+        # Generate quality report
+        report = self.validator.get_data_quality_report(flat_data)
+        
+        # Display report
+        table = Table(title="Data Quality Report")
+        table.add_column("Metric", style="cyan")
+        table.add_column("Value", style="green", justify="right")
+        
+        table.add_row("Total Records", f"{report['total_records']:,}")
+        table.add_row("Duplicate Records", f"{report['duplicate_count']:,}")
+        table.add_row("Duplicate Rate", f"{report['duplicate_rate']:.2f}%")
+        table.add_row("Valid Records", f"{report['validation_results']['valid_records']:,}")
+        table.add_row("Invalid Records", f"{report['validation_results']['invalid_records']:,}")
+        table.add_row("Validation Rate", f"{report['validation_results']['validation_rate']:.1f}%")
+        
+        console.print("\n")
+        console.print(table)
+        
+        # Field completeness
+        console.print("\n[bold]Field Completeness (Top 10):[/bold]")
+        completeness_table = Table()
+        completeness_table.add_column("Field", style="cyan")
+        completeness_table.add_column("Completeness", style="green", justify="right")
+        
+        sorted_fields = sorted(
+            report['field_completeness'].items(),
+            key=lambda x: x[1],
+            reverse=True
+        )[:10]
+        
+        for field, pct in sorted_fields:
+            completeness_table.add_row(field, f"{pct:.1f}%")
+        
+        console.print(completeness_table)
+    
+    def resume_session(self):
+        """Resume an interrupted scraping session"""
+        console.print("\n[bold]🔄 Resume Last Session[/bold]")
+        
+        # Check for saved progress
+        saved = get_all_saved_progress()
+        comptroller_sessions = [s for s in saved if 'comptroller' in s.get('operation', '').lower()]
+        
+        if not comptroller_sessions:
+            console.print("⚠ No saved sessions found", style="yellow")
+            return
+        
+        # Show available sessions
+        console.print("\n[bold]Available sessions to resume:[/bold]")
+        table = Table()
+        table.add_column("#", style="cyan", width=3)
+        table.add_column("Operation", style="white")
+        table.add_column("Completed", style="green")
+        table.add_column("Pending", style="yellow")
+        table.add_column("Last Checkpoint", style="dim")
+        
+        for i, session in enumerate(comptroller_sessions, 1):
+            table.add_row(
+                str(i),
+                session.get('operation', 'Unknown'),
+                str(session.get('completed', 0)),
+                str(session.get('pending', 0)),
+                session.get('last_checkpoint', 'Unknown')[:19] if session.get('last_checkpoint') else 'Unknown'
+            )
+        
+        console.print(table)
+        
+        choice = Prompt.ask("Select session to resume (or 0 to cancel)", default="1")
+        
+        if choice == "0":
+            return
+        
+        try:
+            idx = int(choice) - 1
+            if 0 <= idx < len(comptroller_sessions):
+                session = comptroller_sessions[idx]
+                operation_name = session.get('operation', 'comptroller_scrape')
+                
+                console.print(f"\n[bold]Resuming {operation_name}...[/bold]")
+                
+                # Resume using scraper's progress feature
+                with Progress(
+                    SpinnerColumn(),
+                    TextColumn("[progress.description]{task.description}"),
+                    BarColumn(),
+                    TextColumn("[progress.percentage]{task.completed}/{task.total}"),
+                    console=console
+                ) as progress:
+                    task = progress.add_task("Processing...", total=session.get('pending', 0) + session.get('completed', 0))
+                    
+                    def update_progress(current, total):
+                        progress.update(task, completed=current, total=total)
+                    
+                    results = self.scraper.scrape_with_progress(
+                        [],  # Will load from checkpoint
+                        operation_name=operation_name,
+                        progress_callback=update_progress
+                    )
+                
+                if results:
+                    self.last_data = results
+                    console.print(f"\n✓ Resumed and completed! {len(results)} records", style="green bold")
+                    
+                    if Confirm.ask("Export data?", default=True):
+                        self.export_comptroller_data(results)
+        except (ValueError, IndexError):
+            console.print("Invalid selection", style="red")
+    
+    def manage_saved_progress(self):
+        """View and manage saved progress sessions"""
+        console.print("\n[bold]🗑 Manage Saved Progress[/bold]")
+        
+        saved = get_all_saved_progress()
+        
+        if not saved:
+            console.print("⚠ No saved progress found", style="yellow")
+            return
+        
+        # Show all sessions
+        console.print("\n[bold]All saved sessions:[/bold]")
+        table = Table()
+        table.add_column("#", style="cyan", width=3)
+        table.add_column("Operation", style="white")
+        table.add_column("Completed", style="green")
+        table.add_column("Pending", style="yellow")
+        table.add_column("Last Checkpoint", style="dim")
+        
+        for i, session in enumerate(saved, 1):
+            table.add_row(
+                str(i),
+                session.get('operation', 'Unknown'),
+                str(session.get('completed', 0)),
+                str(session.get('pending', 0)),
+                session.get('last_checkpoint', 'Unknown')[:19] if session.get('last_checkpoint') else 'Unknown'
+            )
+        
+        console.print(table)
+        
+        console.print("\n[bold]Options:[/bold]")
+        console.print("  [cyan]1.[/cyan] Clear specific session")
+        console.print("  [cyan]2.[/cyan] Clear all sessions")
+        console.print("  [cyan]0.[/cyan] Cancel")
+        
+        choice = Prompt.ask("Select option", default="0")
+        
+        if choice == "1":
+            session_num = Prompt.ask("Enter session number to clear")
+            try:
+                idx = int(session_num) - 1
+                if 0 <= idx < len(saved):
+                    from src.utils.progress_manager import ProgressManager
+                    pm = ProgressManager(saved[idx].get('operation', ''))
+                    pm.clear_progress()
+                    console.print("✓ Session cleared", style="green")
+            except (ValueError, IndexError):
+                console.print("Invalid selection", style="red")
+        elif choice == "2":
+            if Confirm.ask("Clear ALL saved progress?", default=False):
+                from src.utils.progress_manager import clear_all_progress
+                count = clear_all_progress()
+                console.print(f"✓ Cleared {count} files", style="green")
+    
+    
     def run(self):
         """Main CLI loop"""
         self.show_banner()
@@ -427,7 +796,7 @@ class ComptrollerScraperCLI:
                     
                 elif choice == "5":
                     taxpayer_id = Prompt.ask("\nEnter Taxpayer ID")
-                    details = self.client.get_franchise_tax_details(taxpayer_id)
+                    details = self.scraper.client.get_franchise_tax_details(taxpayer_id)
                     if details:
                         console.print("\n[bold]Details:[/bold]", style="green")
                         for k, v in details.items():
@@ -437,7 +806,7 @@ class ComptrollerScraperCLI:
                     
                 elif choice == "6":
                     taxpayer_id = Prompt.ask("\nEnter Taxpayer ID")
-                    ftas = self.client.get_franchise_tax_list(taxpayer_id=taxpayer_id)
+                    ftas = self.scraper.client.get_franchise_tax_list(taxpayer_id=taxpayer_id)
                     if ftas:
                         console.print(f"\n[bold]FTAS Records ({len(ftas)}):[/bold]", style="green")
                         for i, record in enumerate(ftas, 1):
@@ -448,13 +817,35 @@ class ComptrollerScraperCLI:
                         console.print("No FTAS records found", style="yellow")
                     
                 elif choice == "7":
+                    self.enrich_socrata_data()
+                    
+                elif choice == "8":
+                    self.scrape_with_validation()
+                    
+                elif choice == "9":
+                    files = self.detect_socrata_files()
+                    if files:
+                        selected_file = self.show_file_selector(files)
+                        data = self.exporter.auto_load(selected_file)
+                        taxpayer_ids = self.extract_taxpayer_ids(data)
+                        console.print(f"\n[bold]Processing with caching...[/bold]")
+                        results = self.scraper.scrape_with_cache(taxpayer_ids)
+                        self.last_data = results
+                        self.show_processing_summary(results)
+                        if Confirm.ask("\nExport?", default=True):
+                            self.export_comptroller_data(results)
+                    
+                elif choice == "10":
+                    self.search_by_business_name()
+                    
+                elif choice == "11":
                     if self.last_data:
                         self.export_comptroller_data(self.last_data)
                     else:
                         console.print("\nNo data to export", style="yellow")
                     
-                elif choice == "8":
-                    stats = self.client.rate_limiter.get_stats()
+                elif choice == "12":
+                    stats = self.scraper.client.rate_limiter.get_stats()
                     table = Table(title="Rate Limiter Stats")
                     table.add_column("Metric", style="cyan")
                     table.add_column("Value", style="green")
@@ -462,6 +853,28 @@ class ComptrollerScraperCLI:
                         table.add_row(k, str(v))
                     console.print("\n")
                     console.print(table)
+                    
+                elif choice == "13":
+                    self.show_scraper_stats()
+                    
+                elif choice == "14":
+                    self.show_cache_stats()
+                    
+                elif choice == "15":
+                    self.scraper.clear_cache()
+                    console.print("\n✓ Cache cleared", style="green")
+                    
+                elif choice == "16":
+                    self.validate_and_clean_data()
+                    
+                elif choice == "17":
+                    self.view_data_quality_report()
+                    
+                elif choice == "18":
+                    self.resume_session()
+                    
+                elif choice == "19":
+                    self.manage_saved_progress()
                     
                 else:
                     console.print("\nInvalid option", style="red")

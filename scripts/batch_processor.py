@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Batch Processing Script
-Process large datasets in batches with progress tracking
+Process large datasets in batches with GPU acceleration and progress tracking
 """
 import sys
 from pathlib import Path
@@ -13,23 +13,27 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, BarColumn, TextColumn, TimeRemainingColumn
 from rich.prompt import Prompt, IntPrompt, Confirm
+from rich.panel import Panel
+from rich.table import Table
 
-from src.api.socrata_client import SocrataClient
-from src.api.comptroller_client import ComptrollerClient
+# Use bulk scrapers with GPU support
+from src.scrapers.socrata_scraper import BulkSocrataScraper
+from src.scrapers.comptroller_scraper import BulkComptrollerScraper
 from src.exporters.file_exporter import FileExporter
 from src.utils.logger import get_logger
-from config.settings import batch_config, EXPORT_DIR
+from config.settings import batch_config, EXPORT_DIR, socrata_config
 
 console = Console()
 logger = get_logger(__name__)
 
 
 class BatchProcessor:
-    """Batch processing utility"""
+    """Batch processing utility with GPU acceleration"""
     
     def __init__(self):
-        self.socrata_client = SocrataClient()
-        self.comptroller_client = ComptrollerClient()
+        # Use bulk scrapers (async + GPU by default)
+        self.socrata_scraper = BulkSocrataScraper()
+        self.comptroller_scraper = BulkComptrollerScraper()
         self.exporter = FileExporter(EXPORT_DIR / 'batch')
         
     def show_banner(self):
@@ -38,120 +42,104 @@ class BatchProcessor:
 ╔═══════════════════════════════════════════════════════════╗
 ║                                                           ║
 ║              BATCH PROCESSOR - LARGE DATASETS            ║
+║                    🚀 GPU Accelerated 🚀                  ║
 ║                                                           ║
 ╚═══════════════════════════════════════════════════════════╝
         """
         console.print(banner, style="bold cyan")
+        
+        # Show GPU status
+        if self.socrata_scraper.gpu.gpu_available:
+            console.print(f"✓ GPU: {self.socrata_scraper.gpu.device_name}", style="green")
+        else:
+            console.print("⚠ GPU: Not available (using CPU)", style="yellow")
+        
+        console.print("✓ Mode: Async + Bulk Processing", style="green")
     
     def batch_download_socrata(self, dataset_id: str, total_records: int,
                                 batch_size: int = 1000):
         """
-        Download large Socrata dataset in batches
+        Download large Socrata dataset in batches with GPU acceleration
         
         Args:
             dataset_id: Dataset identifier
             total_records: Total records to download
             batch_size: Records per batch
         """
-        all_data = []
-        
         console.print(f"\n[bold]Batch downloading {total_records:,} records...[/bold]")
-        console.print(f"Batch size: {batch_size:,} records\n")
+        console.print(f"Batch size: {batch_size:,} records")
         
-        with Progress(
-            SpinnerColumn(),
-            TextColumn("[progress.description]{task.description}"),
-            BarColumn(),
-            TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
-            TextColumn("•"),
-            TextColumn("{task.completed}/{task.total} batches"),
-            TimeRemainingColumn(),
-            console=console
-        ) as progress:
-            
-            num_batches = (total_records + batch_size - 1) // batch_size
-            task = progress.add_task("Downloading...", total=num_batches)
-            
-            for offset in range(0, total_records, batch_size):
-                try:
-                    batch = self.socrata_client.get(
-                        dataset_id,
-                        limit=batch_size,
-                        offset=offset
-                    )
-                    
-                    if batch:
-                        all_data.extend(batch)
-                        progress.update(task, advance=1)
-                    else:
-                        break
-                    
-                    # Stop if we got fewer records than expected
-                    if len(batch) < batch_size:
-                        break
-                        
-                except Exception as e:
-                    logger.error(f"Error in batch at offset {offset}: {e}")
-                    console.print(f"\n⚠ Error at offset {offset}, continuing...", 
-                                style="yellow")
-                    progress.update(task, advance=1)
+        if self.socrata_scraper.gpu.use_gpu:
+            console.print("🚀 GPU acceleration enabled\n", style="cyan")
         
-        console.print(f"\n✓ Downloaded {len(all_data):,} records", style="green bold")
-        return all_data
+        try:
+            # Use bulk scraper's scrape_dataset method
+            data = self.socrata_scraper.scrape_dataset(
+                dataset_id,
+                limit=total_records,
+                batch_size=batch_size
+            )
+            
+            console.print(f"\n✓ Downloaded {len(data):,} records", style="green bold")
+            return data
+            
+        except Exception as e:
+            logger.error(f"Download error: {e}")
+            console.print(f"Error: {e}", style="red")
+            return []
     
     def batch_process_taxpayer_ids(self, taxpayer_ids: list, 
                                     batch_size: int = 100):
         """
-        Process taxpayer IDs in batches
+        Process taxpayer IDs in batches with async + GPU
         
         Args:
             taxpayer_ids: List of taxpayer IDs
             batch_size: IDs per batch
         """
-        results = []
-        
         console.print(f"\n[bold]Processing {len(taxpayer_ids):,} taxpayer IDs...[/bold]")
-        console.print(f"Batch size: {batch_size}\n")
+        console.print(f"Concurrent requests: {batch_config.CONCURRENT_REQUESTS}")
         
-        with Progress(
-            SpinnerColumn(),
-            TextColumn("[progress.description]{task.description}"),
-            BarColumn(),
-            TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
-            TextColumn("•"),
-            TextColumn("{task.completed}/{task.total} records"),
-            TimeRemainingColumn(),
-            console=console
-        ) as progress:
-            
-            task = progress.add_task("Processing...", total=len(taxpayer_ids))
-            
-            for i in range(0, len(taxpayer_ids), batch_size):
-                batch = taxpayer_ids[i:i+batch_size]
-                
-                for taxpayer_id in batch:
-                    try:
-                        info = self.comptroller_client.get_complete_taxpayer_info(
-                            taxpayer_id
-                        )
-                        results.append(info)
-                        progress.update(task, advance=1)
-                        
-                    except Exception as e:
-                        logger.error(f"Error processing {taxpayer_id}: {e}")
-                        results.append({
-                            'taxpayer_id': taxpayer_id,
-                            'error': str(e),
-                            'details': None,
-                            'ftas_records': []
-                        })
-                        progress.update(task, advance=1)
-                
-                # Brief pause between batches
-                time.sleep(0.5)
+        if self.comptroller_scraper.gpu.use_gpu:
+            console.print("🚀 GPU acceleration enabled\n", style="cyan")
         
-        console.print(f"\n✓ Processed {len(results):,} records", style="green bold")
-        return results
+        try:
+            # Use bulk scraper (async by default)
+            results = self.comptroller_scraper.bulk_scrape_sync(
+                taxpayer_ids,
+                include_details=True,
+                include_ftas=True
+            )
+            
+            console.print(f"\n✓ Processed {len(results):,} records", style="green bold")
+            return results
+            
+        except Exception as e:
+            logger.error(f"Processing error: {e}")
+            console.print(f"Error: {e}", style="red")
+            return []
+    
+    def show_stats(self):
+        """Show scraper statistics"""
+        console.print("\n[bold]Scraper Statistics[/bold]")
+        
+        # Socrata stats
+        socrata_stats = self.socrata_scraper.get_scraper_stats()
+        table1 = Table(title="Socrata Scraper")
+        table1.add_column("Metric", style="cyan")
+        table1.add_column("Value", style="green")
+        table1.add_row("Client Type", socrata_stats['client_type'])
+        table1.add_row("GPU Enabled", "✓ Yes" if socrata_stats['gpu_enabled'] else "✗ No")
+        console.print(table1)
+        
+        # Comptroller stats
+        comp_stats = self.comptroller_scraper.get_scraper_stats()
+        table2 = Table(title="Comptroller Scraper")
+        table2.add_column("Metric", style="cyan")
+        table2.add_column("Value", style="green")
+        table2.add_row("Client Type", comp_stats['client_type'])
+        table2.add_row("GPU Enabled", "✓ Yes" if comp_stats['gpu_enabled'] else "✗ No")
+        console.print(table2)
     
     def run(self):
         """Main menu"""
@@ -165,9 +153,11 @@ class BatchProcessor:
             console.print("\n1. Batch download Socrata dataset")
             console.print("2. Batch process taxpayer IDs from file")
             console.print("3. Full pipeline (download + process)")
+            console.print("4. Multi-dataset batch download")
+            console.print("5. View scraper stats")
             console.print("0. Exit")
             
-            choice = Prompt.ask("\nSelect option", choices=["1", "2", "3", "0"])
+            choice = Prompt.ask("\nSelect option", choices=["1", "2", "3", "4", "5", "0"])
             
             if choice == "0":
                 console.print("\nGoodbye! 👋", style="cyan")
@@ -181,6 +171,12 @@ class BatchProcessor:
                 
             elif choice == "3":
                 self.handle_full_pipeline()
+                
+            elif choice == "4":
+                self.handle_multi_dataset()
+                
+            elif choice == "5":
+                self.show_stats()
     
     def handle_batch_download(self):
         """Handle batch download"""
@@ -195,10 +191,8 @@ class BatchProcessor:
         dataset_choice = Prompt.ask("Select", choices=["1", "2", "3"])
         
         if dataset_choice == "1":
-            from config.settings import socrata_config
             dataset_id = socrata_config.FRANCHISE_TAX_DATASET
         elif dataset_choice == "2":
-            from config.settings import socrata_config
             dataset_id = socrata_config.SALES_TAX_DATASET
         else:
             dataset_id = Prompt.ask("Enter dataset ID")
@@ -215,8 +209,9 @@ class BatchProcessor:
         # Export
         if data and Confirm.ask("\nExport results?", default=True):
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            self.exporter.export_all_formats(data, f"batch_download_{timestamp}")
-            console.print("✓ Export complete!", style="green")
+            paths = self.exporter.export_all_formats(data, f"batch_download_{timestamp}")
+            for fmt, path in paths.items():
+                console.print(f"✓ Exported {fmt.upper()}: {path}", style="green")
     
     def handle_batch_process(self):
         """Handle batch processing"""
@@ -237,17 +232,15 @@ class BatchProcessor:
             
             console.print(f"✓ Found {len(taxpayer_ids):,} taxpayer IDs", style="green")
             
-            # Batch size
-            batch_size = IntPrompt.ask("Batch size", default=100)
-            
             # Process
-            results = self.batch_process_taxpayer_ids(taxpayer_ids, batch_size)
+            results = self.batch_process_taxpayer_ids(taxpayer_ids)
             
             # Export
             if results and Confirm.ask("\nExport results?", default=True):
                 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                self.exporter.export_all_formats(results, f"batch_process_{timestamp}")
-                console.print("✓ Export complete!", style="green")
+                paths = self.exporter.export_all_formats(results, f"batch_process_{timestamp}")
+                for fmt, path in paths.items():
+                    console.print(f"✓ Exported {fmt.upper()}: {path}", style="green")
                 
         except Exception as e:
             console.print(f"Error: {e}", style="red bold")
@@ -259,7 +252,6 @@ class BatchProcessor:
         # Download
         console.print("\n[cyan]Step 1: Download Socrata Data[/cyan]")
         
-        from config.settings import socrata_config
         dataset_id = socrata_config.FRANCHISE_TAX_DATASET
         
         total_records = IntPrompt.ask("Records to download", default=5000)
@@ -286,17 +278,84 @@ class BatchProcessor:
         # Process
         console.print("\n[cyan]Step 3: Process with Comptroller API[/cyan]")
         
-        process_batch_size = IntPrompt.ask("Process batch size", default=100)
-        
-        results = self.batch_process_taxpayer_ids(taxpayer_ids, process_batch_size)
+        results = self.batch_process_taxpayer_ids(taxpayer_ids)
         
         # Export
         console.print("\n[cyan]Step 4: Export Results[/cyan]")
         
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        self.exporter.export_all_formats(results, f"pipeline_{timestamp}")
+        
+        # Export Socrata data
+        socrata_paths = self.exporter.export_all_formats(data, f"pipeline_socrata_{timestamp}")
+        console.print("Socrata exports:", style="bold")
+        for fmt, path in socrata_paths.items():
+            console.print(f"  ✓ {fmt.upper()}: {path}", style="green")
+        
+        # Export Comptroller data
+        comp_paths = self.exporter.export_all_formats(results, f"pipeline_comptroller_{timestamp}")
+        console.print("Comptroller exports:", style="bold")
+        for fmt, path in comp_paths.items():
+            console.print(f"  ✓ {fmt.upper()}: {path}", style="green")
         
         console.print("\n✓ Full pipeline complete!", style="green bold")
+    
+    def handle_multi_dataset(self):
+        """Handle multi-dataset batch download"""
+        console.print("\n[bold]Multi-Dataset Batch Download[/bold]")
+        console.print("Download multiple datasets concurrently\n")
+        
+        # Select datasets
+        download_franchise = Confirm.ask("Download Franchise Tax?", default=True)
+        download_sales = Confirm.ask("Download Sales Tax?", default=True)
+        download_mixed = Confirm.ask("Download Mixed Beverage?", default=False)
+        
+        dataset_ids = []
+        if download_franchise:
+            dataset_ids.append(socrata_config.FRANCHISE_TAX_DATASET)
+        if download_sales:
+            dataset_ids.append(socrata_config.SALES_TAX_DATASET)
+        if download_mixed:
+            dataset_ids.append(socrata_config.MIXED_BEVERAGE_DATASET)
+        
+        if not dataset_ids:
+            console.print("No datasets selected", style="yellow")
+            return
+        
+        limit = IntPrompt.ask("Records per dataset (0 for all)", default=5000)
+        limit = None if limit == 0 else limit
+        
+        console.print(f"\n[bold]Downloading {len(dataset_ids)} datasets...[/bold]")
+        
+        try:
+            # Use bulk scraper's multi-dataset feature
+            results = self.socrata_scraper.scrape_multiple_datasets(
+                dataset_ids,
+                limit_per_dataset=limit
+            )
+            
+            total = sum(len(v) for v in results.values())
+            console.print(f"\n✓ Downloaded {total:,} total records", style="green bold")
+            
+            # Export each
+            if Confirm.ask("\nExport all?", default=True):
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                for dataset_id, data in results.items():
+                    if data:
+                        name = self._get_dataset_name(dataset_id)
+                        paths = self.exporter.export_all_formats(data, f"batch_{name}_{timestamp}")
+                        console.print(f"✓ Exported {name}", style="green")
+                        
+        except Exception as e:
+            console.print(f"Error: {e}", style="red bold")
+    
+    def _get_dataset_name(self, dataset_id: str) -> str:
+        """Get dataset name"""
+        names = {
+            socrata_config.FRANCHISE_TAX_DATASET: "franchise_tax",
+            socrata_config.SALES_TAX_DATASET: "sales_tax",
+            socrata_config.MIXED_BEVERAGE_DATASET: "mixed_beverage"
+        }
+        return names.get(dataset_id, dataset_id)
 
 
 if __name__ == "__main__":

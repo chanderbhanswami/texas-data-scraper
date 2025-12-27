@@ -1,6 +1,7 @@
 """
 Socrata Scraper Module
 Core scraping logic for Socrata Open Data Portal
+With progress persistence for resumable operations
 """
 from typing import List, Dict, Optional, Callable
 import time
@@ -8,6 +9,13 @@ from src.api.socrata_client import SocrataClient, AsyncSocrataClient
 from src.scrapers.gpu_accelerator import get_gpu_accelerator
 from src.utils.logger import get_logger
 from config.settings import socrata_config, batch_config
+
+# Import progress manager
+try:
+    from src.utils.progress_manager import ProgressManager, get_all_saved_progress
+    PROGRESS_AVAILABLE = True
+except ImportError:
+    PROGRESS_AVAILABLE = False
 
 logger = get_logger(__name__)
 
@@ -325,3 +333,109 @@ class BulkSocrataScraper(SocrataScraper):
         """
         import asyncio
         return asyncio.run(self.bulk_scrape_async(dataset_ids, limit_per_dataset))
+    
+    def scrape_with_progress(self,
+                             dataset_id: str,
+                             operation_name: str = 'socrata_scrape',
+                             batch_size: int = 1000,
+                             checkpoint_interval: int = 5000,
+                             progress_callback: Optional[Callable] = None) -> List[Dict]:
+        """
+        Scrape with progress persistence for resumable operations
+        
+        Args:
+            dataset_id: Dataset to scrape
+            operation_name: Name for this operation (for resume)
+            batch_size: Records per batch
+            checkpoint_interval: Save checkpoint every N records
+            progress_callback: Optional callback for progress updates
+            
+        Returns:
+            List of records
+        """
+        if not PROGRESS_AVAILABLE:
+            logger.warning("Progress manager not available, using standard scraping")
+            return self.scrape_dataset(dataset_id)
+        
+        # Initialize progress manager
+        progress = ProgressManager(f"{operation_name}_{dataset_id}")
+        
+        # Check for saved progress
+        if progress.has_saved_progress():
+            progress.load_progress()
+            results = progress.get_partial_results()
+            start_offset = len(results)
+            logger.info(f"Resuming from checkpoint: {start_offset} records already fetched")
+        else:
+            progress.start_operation([], {'dataset_id': dataset_id})
+            results = []
+            start_offset = 0
+        
+        offset = start_offset
+        
+        try:
+            while True:
+                # Fetch batch
+                try:
+                    batch = self.client.get(
+                        dataset_id,
+                        limit=batch_size,
+                        offset=offset
+                    )
+                    
+                    if not batch:
+                        logger.info("No more data to fetch")
+                        break
+                    
+                    results.extend(batch)
+                    offset += len(batch)
+                    
+                    # Progress callback
+                    if progress_callback:
+                        progress_callback(len(results), None)
+                    
+                    # Checkpoint
+                    if len(results) % checkpoint_interval < batch_size:
+                        progress.partial_results = results
+                        progress.save_progress()
+                        logger.debug(f"Checkpoint saved: {len(results)} records")
+                    
+                    # Break if we got fewer records than requested
+                    if len(batch) < batch_size:
+                        break
+                        
+                except Exception as e:
+                    logger.error(f"Error fetching batch at offset {offset}: {e}")
+                    # Save progress before raising
+                    progress.partial_results = results
+                    progress.save_progress()
+                    raise
+            
+            # Clear progress on success
+            progress.clear_progress()
+            logger.info(f"Scrape complete: {len(results)} records")
+            
+        except KeyboardInterrupt:
+            # Save progress on interruption
+            progress.partial_results = results
+            progress.save_progress()
+            logger.warning(f"Interrupted! Progress saved: {len(results)} records")
+            raise
+        
+        return results
+    
+    def get_saved_progress(self, operation_name: str, dataset_id: str = '') -> Optional[Dict]:
+        """Get info about saved progress for an operation"""
+        if not PROGRESS_AVAILABLE:
+            return None
+        
+        name = f"{operation_name}_{dataset_id}" if dataset_id else operation_name
+        progress = ProgressManager(name)
+        return progress.get_progress_info()
+    
+    def list_all_saved_progress(self) -> List[Dict]:
+        """List all saved progress sessions"""
+        if not PROGRESS_AVAILABLE:
+            return []
+        
+        return get_all_saved_progress()

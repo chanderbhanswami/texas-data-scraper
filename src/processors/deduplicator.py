@@ -1,10 +1,19 @@
 """
 Data Deduplicator - Remove duplicate records
+With GPU acceleration support
 """
 from typing import List, Dict, Any, Set, Tuple
 from collections import defaultdict
 import hashlib
 from src.utils.logger import get_logger
+from src.utils.helpers import generate_hash
+
+# Try to import GPU accelerator
+try:
+    from src.scrapers.gpu_accelerator import get_gpu_accelerator
+    GPU_AVAILABLE = True
+except ImportError:
+    GPU_AVAILABLE = False
 
 logger = get_logger(__name__)
 
@@ -359,3 +368,70 @@ class AdvancedDeduplicator(Deduplicator):
                     score += 1
         
         return score
+    
+    def deduplicate_with_gpu(self, data: List[Dict], key_field: str = 'taxpayer_id') -> List[Dict]:
+        """
+        GPU-accelerated deduplication
+        
+        Args:
+            data: List of records
+            key_field: Field to deduplicate by
+            
+        Returns:
+            Deduplicated records
+        """
+        if not GPU_AVAILABLE:
+            logger.info("GPU not available, using CPU deduplication")
+            unique, _ = self.deduplicate(data)
+            return unique
+        
+        try:
+            gpu = get_gpu_accelerator()
+            
+            if not gpu.use_gpu:
+                logger.info("GPU disabled, using CPU deduplication")
+                unique, _ = self.deduplicate(data)
+                return unique
+            
+            logger.info("Using GPU-accelerated deduplication")
+            
+            # GPU deduplication
+            unique_data = gpu.deduplicate_gpu(data, key_field=key_field)
+            
+            logger.info(f"GPU deduplicated: {len(data)} -> {len(unique_data)} records")
+            
+            return unique_data
+            
+        except Exception as e:
+            logger.error(f"GPU deduplication failed: {e}, falling back to CPU")
+            unique, _ = self.deduplicate(data)
+            return unique
+    
+    def hash_based_deduplicate(self, data: List[Dict]) -> Tuple[List[Dict], List[Dict]]:
+        """
+        Hash-based exact deduplication using helpers.generate_hash
+        
+        Args:
+            data: List of records
+            
+        Returns:
+            Tuple of (unique_records, duplicates)
+        """
+        logger.info("Using hash-based deduplication")
+        
+        seen_hashes = {}
+        unique_records = []
+        duplicates = []
+        
+        for record in data:
+            record_hash = generate_hash(record)  # Use helpers.generate_hash
+            
+            if record_hash not in seen_hashes:
+                seen_hashes[record_hash] = record
+                unique_records.append(record)
+            else:
+                duplicates.append(record)
+        
+        logger.info(f"Hash dedup: {len(unique_records)} unique, {len(duplicates)} duplicates")
+        
+        return unique_records, duplicates

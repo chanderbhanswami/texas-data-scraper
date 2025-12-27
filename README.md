@@ -40,6 +40,8 @@ A comprehensive, production-ready toolkit for scraping and processing data from 
 - **Advanced Deduplication**: Multiple strategies with merge capabilities
 - **Rate Limiting**: Intelligent throttling with automatic token management
 - **Comprehensive Logging**: Detailed logs with rotation and compression
+- **Progress Persistence**: Resume interrupted downloads from checkpoints (v1.1.0)
+- **Export Verification**: SHA-256 checksums for data integrity (v1.1.0)
 
 ### Data Sources
 - Franchise Tax Permit Holders
@@ -300,9 +302,11 @@ texas-data-scraper/
 │   │
 │   └── utils/
 │       ├── __init__.py               # Utils package initialization
+│       ├── checksum.py               # File checksum verification
 │       ├── helpers.py                # Helper functions
 │       ├── logger.py                 # Logging utilities
-│       └── menu.py                   # Interactive CLI menu
+│       ├── menu.py                   # Interactive CLI menu
+│       └── progress_manager.py       # Progress persistence for downloads
 │
 ├── tests/
 │   ├── __init__.py                   # Tests package initialization
@@ -537,18 +541,40 @@ Socrata API → Raw Data → Comptroller Enrichment → Merge → Deduplicate �
 
 See our [project roadmap](https://github.com/chanderbhanswami/texas-data-scraper/projects) for upcoming features.
 
+### Phase 1: Core Data Pipeline ✅
 - [x] Socrata Open Data Portal integration
 - [x] Texas Comptroller API integration
 - [x] GPU acceleration with CUDA
 - [x] Multi-format export (JSON, CSV, Excel)
 - [x] Data deduplication
 - [x] Interactive CLI menus
+
+### Phase 1.1: Resilience & Reliability ✅ (NEW)
+- [x] Progress persistence (resume interrupted downloads)
+- [x] Export checksum verification
+- [x] Data validation and quality reports
+- [x] GPU-accelerated merging and deduplication
+
+### Phase 2: Business Enrichment (Planned)
+- [ ] Google Places API integration
+  - Business phone numbers
+  - Business websites
+  - Business addresses verification
+  - Operating hours
+- [ ] Clearbit API integration
+  - Company emails
+  - Social media profiles
+  - Company logo and branding
+  - Industry classification
+
+### Phase 3: Advanced Features (Planned)
 - [ ] Web dashboard interface
 - [ ] Scheduled automatic scraping
 - [ ] Email notifications
 - [ ] Cloud deployment support
 - [ ] API rate limit analytics
 - [ ] Data visualization exports
+- [ ] Unified company profile generation
 
 ---
 

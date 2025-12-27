@@ -1,28 +1,38 @@
 """
 File export utilities for multiple formats
+With checksum generation for data integrity
 """
 import json
 import csv
 from pathlib import Path
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Tuple
 import pandas as pd
 from src.utils.logger import get_logger
+
+# Import checksum utility
+try:
+    from src.utils.checksum import generate_export_checksum, verify_export_file
+    CHECKSUM_AVAILABLE = True
+except ImportError:
+    CHECKSUM_AVAILABLE = False
 
 logger = get_logger(__name__)
 
 
 class FileExporter:
-    """Export data to various file formats"""
+    """Export data to various file formats with optional checksum verification"""
     
-    def __init__(self, export_dir: Path):
+    def __init__(self, export_dir: Path, generate_checksums: bool = True):
         """
         Initialize file exporter
         
         Args:
             export_dir: Directory for exported files
+            generate_checksums: Whether to generate checksum files
         """
         self.export_dir = Path(export_dir)
         self.export_dir.mkdir(parents=True, exist_ok=True)
+        self.generate_checksums = generate_checksums and CHECKSUM_AVAILABLE
         
     def export_json(self, data: List[Dict], filename: str, indent: int = 2) -> Path:
         """
@@ -41,6 +51,10 @@ class FileExporter:
         try:
             with open(filepath, 'w', encoding='utf-8') as f:
                 json.dump(data, f, indent=indent, ensure_ascii=False)
+            
+            # Generate checksum
+            if self.generate_checksums:
+                generate_export_checksum(filepath, len(data))
             
             logger.info(f"Exported {len(data)} records to JSON: {filepath}")
             return filepath
@@ -79,6 +93,10 @@ class FileExporter:
                 writer = csv.DictWriter(f, fieldnames=fieldnames)
                 writer.writeheader()
                 writer.writerows(data)
+            
+            # Generate checksum
+            if self.generate_checksums:
+                generate_export_checksum(filepath, len(data))
             
             logger.info(f"Exported {len(data)} records to CSV: {filepath}")
             return filepath
@@ -138,6 +156,10 @@ class FileExporter:
                     )
                     worksheet.set_column(i, i, min(max_length + 2, 50))
             
+            # Generate checksum
+            if self.generate_checksums:
+                generate_export_checksum(filepath, len(data))
+            
             logger.info(f"Exported {len(data)} records to Excel: {filepath}")
             return filepath
             
@@ -178,9 +200,15 @@ class FileExporter:
             logger.error(f"Error exporting to multiple formats: {e}")
             raise
     
-    def load_json(self, filepath: Path) -> List[Dict]:
-        """Load data from JSON file"""
+    def load_json(self, filepath: Path, verify: bool = True) -> List[Dict]:
+        """Load data from JSON file with optional checksum verification"""
         try:
+            # Verify checksum first if requested
+            if verify and CHECKSUM_AVAILABLE:
+                is_valid, msg = verify_export_file(filepath)
+                if not is_valid:
+                    logger.warning(f"Checksum verification failed for {filepath}: {msg}")
+            
             with open(filepath, 'r', encoding='utf-8') as f:
                 data = json.load(f)
             
@@ -191,9 +219,15 @@ class FileExporter:
             logger.error(f"Error loading JSON: {e}")
             raise
     
-    def load_csv(self, filepath: Path) -> List[Dict]:
-        """Load data from CSV file"""
+    def load_csv(self, filepath: Path, verify: bool = True) -> List[Dict]:
+        """Load data from CSV file with optional checksum verification"""
         try:
+            # Verify checksum first if requested
+            if verify and CHECKSUM_AVAILABLE:
+                is_valid, msg = verify_export_file(filepath)
+                if not is_valid:
+                    logger.warning(f"Checksum verification failed for {filepath}: {msg}")
+            
             with open(filepath, 'r', encoding='utf-8-sig') as f:
                 reader = csv.DictReader(f)
                 data = list(reader)
@@ -205,9 +239,15 @@ class FileExporter:
             logger.error(f"Error loading CSV: {e}")
             raise
     
-    def load_excel(self, filepath: Path, sheet_name: str = None) -> List[Dict]:
-        """Load data from Excel file"""
+    def load_excel(self, filepath: Path, sheet_name: str = None, verify: bool = True) -> List[Dict]:
+        """Load data from Excel file with optional checksum verification"""
         try:
+            # Verify checksum first if requested
+            if verify and CHECKSUM_AVAILABLE:
+                is_valid, msg = verify_export_file(filepath)
+                if not is_valid:
+                    logger.warning(f"Checksum verification failed for {filepath}: {msg}")
+            
             df = pd.read_excel(filepath, sheet_name=sheet_name or 0)
             data = df.to_dict('records')
             

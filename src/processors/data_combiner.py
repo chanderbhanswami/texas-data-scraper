@@ -1,10 +1,19 @@
 """
 Data Combiner - Merge Socrata and Comptroller data
+With GPU acceleration support
 """
 from typing import List, Dict, Any, Optional
 from collections import defaultdict
 from src.utils.logger import get_logger
+from src.utils.helpers import merge_dicts, flatten_dict
 from config.settings import data_config
+
+# Try to import GPU accelerator
+try:
+    from src.scrapers.gpu_accelerator import get_gpu_accelerator
+    GPU_AVAILABLE = True
+except ImportError:
+    GPU_AVAILABLE = False
 
 logger = get_logger(__name__)
 
@@ -321,3 +330,46 @@ class SmartDataCombiner(DataCombiner):
                 merged[f'resolved_{field}'] = merged[f'socrata_{field}']
         
         return merged
+    
+    def combine_with_gpu(self,
+                         socrata_data: List[Dict],
+                         comptroller_data: List[Dict],
+                         on: str = 'taxpayer_id') -> List[Dict]:
+        """
+        GPU-accelerated data combination
+        
+        Args:
+            socrata_data: Socrata data
+            comptroller_data: Comptroller data
+            on: Field to join on
+            
+        Returns:
+            Combined data
+        """
+        if not GPU_AVAILABLE:
+            logger.info("GPU not available, using CPU combination")
+            return self.combine_by_taxpayer_id(socrata_data, comptroller_data)
+        
+        try:
+            gpu = get_gpu_accelerator()
+            
+            if not gpu.use_gpu:
+                logger.info("GPU disabled, using CPU combination")
+                return self.combine_by_taxpayer_id(socrata_data, comptroller_data)
+            
+            logger.info("Using GPU-accelerated combination")
+            
+            # GPU merge
+            combined = gpu.merge_datasets_gpu(
+                socrata_data,
+                comptroller_data,
+                on=on
+            )
+            
+            logger.info(f"GPU combined {len(combined)} records")
+            
+            return combined
+            
+        except Exception as e:
+            logger.error(f"GPU combination failed: {e}, falling back to CPU")
+            return self.combine_by_taxpayer_id(socrata_data, comptroller_data)

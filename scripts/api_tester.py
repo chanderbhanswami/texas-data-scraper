@@ -17,6 +17,8 @@ from rich.progress import Progress, SpinnerColumn, TextColumn
 
 from src.api.socrata_client import SocrataClient
 from src.api.comptroller_client import ComptrollerClient
+from src.scrapers.socrata_scraper import SocrataScraper, BulkSocrataScraper
+from src.scrapers.comptroller_scraper import ComptrollerScraper, SmartComptrollerScraper
 from src.utils.logger import get_logger
 from config.settings import socrata_config, comptroller_config
 
@@ -30,6 +32,9 @@ class APITester:
     def __init__(self):
         self.socrata_client = SocrataClient()
         self.comptroller_client = ComptrollerClient()
+        # Scraper wrappers for advanced testing
+        self.socrata_scraper = SocrataScraper(use_gpu=True)
+        self.comptroller_scraper = SmartComptrollerScraper()
         self.test_results = []
         
     def run_all_tests(self):
@@ -45,6 +50,10 @@ class APITester:
         # Test Comptroller API
         console.print("\n" + Panel("COMPTROLLER API TESTS", style="bold green"))
         self.test_comptroller_api()
+        
+        # Test GPU and Scrapers
+        console.print("\n" + Panel("GPU & SCRAPER WRAPPER TESTS", style="bold magenta"))
+        self.test_gpu_and_scrapers()
         
         # Show summary
         self.show_summary()
@@ -383,6 +392,103 @@ class APITester:
                 'error': str(e)
             }
     
+    def test_gpu_and_scrapers(self):
+        """Test GPU and scraper wrapper functionality"""
+        tests = [
+            ("GPU Availability", self.test_gpu_availability),
+            ("Socrata Scraper Init", self.test_socrata_scraper_init),
+            ("Comptroller Scraper Init", self.test_comptroller_scraper_init),
+            ("GPU Accelerator Import", self.test_gpu_accelerator_import),
+            ("Scraper Stats", self.test_scraper_stats),
+        ]
+        
+        for test_name, test_func in tests:
+            self._run_test(test_name, test_func, "GPU/Scraper")
+    
+    def test_gpu_availability(self) -> dict:
+        """Test GPU availability"""
+        try:
+            gpu = self.socrata_scraper.gpu
+            
+            if gpu.gpu_available:
+                return {
+                    'success': True,
+                    'message': f'GPU available: {gpu.device_name}'
+                }
+            else:
+                return {
+                    'success': True,
+                    'message': 'GPU not available (using CPU fallback)'
+                }
+        except Exception as e:
+            return {
+                'success': False,
+                'error': str(e)
+            }
+    
+    def test_socrata_scraper_init(self) -> dict:
+        """Test Socrata scraper initialization"""
+        try:
+            scraper = SocrataScraper(use_async=False, use_gpu=True)
+            
+            return {
+                'success': True,
+                'message': f'Initialized (client_type={scraper.get_scraper_stats()["client_type"]})'
+            }
+        except Exception as e:
+            return {
+                'success': False,
+                'error': str(e)
+            }
+    
+    def test_comptroller_scraper_init(self) -> dict:
+        """Test Comptroller scraper initialization"""
+        try:
+            scraper = SmartComptrollerScraper()
+            
+            return {
+                'success': True,
+                'message': f'Initialized with caching (cached_items={scraper.get_cache_stats()["cached_items"]})'
+            }
+        except Exception as e:
+            return {
+                'success': False,
+                'error': str(e)
+            }
+    
+    def test_gpu_accelerator_import(self) -> dict:
+        """Test GPU accelerator import"""
+        try:
+            from src.scrapers.gpu_accelerator import get_gpu_accelerator
+            
+            gpu = get_gpu_accelerator()
+            
+            return {
+                'success': True,
+                'message': f'GPU accelerator loaded (use_gpu={gpu.use_gpu})'
+            }
+        except Exception as e:
+            return {
+                'success': False,
+                'error': str(e)
+            }
+    
+    def test_scraper_stats(self) -> dict:
+        """Test scraper stats retrieval"""
+        try:
+            socrata_stats = self.socrata_scraper.get_scraper_stats()
+            comp_stats = self.comptroller_scraper.get_scraper_stats()
+            
+            return {
+                'success': True,
+                'message': f'Stats OK (socrata: {socrata_stats["client_type"]}, comptroller: {comp_stats["client_type"]})'
+            }
+        except Exception as e:
+            return {
+                'success': False,
+                'error': str(e)
+            }
+    
     def show_summary(self):
         """Show test summary"""
         console.print("\n" + "="*70, style="bold")
@@ -397,9 +503,11 @@ class APITester:
         # Stats by API
         socrata_tests = [r for r in self.test_results if r['api'] == 'Socrata']
         comptroller_tests = [r for r in self.test_results if r['api'] == 'Comptroller']
+        gpu_tests = [r for r in self.test_results if r['api'] == 'GPU/Scraper']
         
         socrata_passed = sum(1 for r in socrata_tests if r['success'])
         comptroller_passed = sum(1 for r in comptroller_tests if r['success'])
+        gpu_passed = sum(1 for r in gpu_tests if r['success'])
         
         # Create summary table
         table = Table(title="Test Results", show_header=True)
@@ -423,6 +531,14 @@ class APITester:
             str(comptroller_passed),
             str(len(comptroller_tests) - comptroller_passed),
             f"{comptroller_passed/len(comptroller_tests)*100:.1f}%" if comptroller_tests else "N/A"
+        )
+        
+        table.add_row(
+            "GPU/Scraper",
+            str(len(gpu_tests)),
+            str(gpu_passed),
+            str(len(gpu_tests) - gpu_passed),
+            f"{gpu_passed/len(gpu_tests)*100:.1f}%" if gpu_tests else "N/A"
         )
         
         table.add_row(

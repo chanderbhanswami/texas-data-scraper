@@ -2,6 +2,7 @@
 """
 Deduplicator - Interactive CLI
 Remove duplicate records from datasets
+With GPU acceleration and data validation
 """
 import sys
 from pathlib import Path
@@ -19,17 +20,26 @@ from src.exporters.file_exporter import FileExporter
 from src.utils.logger import get_logger
 from config.settings import COMBINED_EXPORT_DIR, DEDUPLICATED_EXPORT_DIR
 
+# Import utility modules
+from src.scrapers.gpu_accelerator import get_gpu_accelerator
+from src.processors.data_validator import DataValidator
+from src.utils.helpers import format_bytes, generate_hash
+
 console = Console()
 logger = get_logger(__name__)
 
 
 class DeduplicatorCLI:
-    """Interactive CLI for data deduplication"""
+    """Interactive CLI for data deduplication with GPU acceleration"""
     
     def __init__(self):
         self.deduplicator = AdvancedDeduplicator()
         self.exporter = FileExporter(DEDUPLICATED_EXPORT_DIR)
         self.input_exporter = FileExporter(COMBINED_EXPORT_DIR)
+        # Initialize GPU accelerator and validator
+        self.gpu = get_gpu_accelerator()
+        self.validator = DataValidator()
+        self.last_deduplicated_data = None
         
     def show_banner(self):
         """Show welcome banner"""
@@ -41,6 +51,12 @@ class DeduplicatorCLI:
 ╚═══════════════════════════════════════════════════════════╝
         """
         console.print(banner, style="bold cyan")
+        
+        # Show GPU status
+        if self.gpu.gpu_available:
+            console.print(f"✓ GPU Acceleration: Enabled", style="green")
+        else:
+            console.print("⚠ GPU Acceleration: Not available (using CPU)", style="yellow")
     
     def show_main_menu(self) -> str:
         """Display main menu"""
@@ -62,7 +78,16 @@ class DeduplicatorCLI:
         table.add_row("6", "Advanced: Deduplicate with merge")
         table.add_row("7", "Advanced: Deduplicate by confidence")
         table.add_row("", "")
-        table.add_row("8", "Change deduplication strategy")
+        # New GPU-accelerated options
+        table.add_row("8", "🚀 GPU-Accelerated Deduplication")
+        table.add_row("9", "🔍 Hash-Based Duplicate Detection")
+        table.add_row("", "")
+        # Validation options
+        table.add_row("10", "📊 Validate After Deduplication")
+        table.add_row("11", "🧹 Clean & Validate Data")
+        table.add_row("", "")
+        table.add_row("12", "Change deduplication strategy")
+        table.add_row("13", "View GPU/Memory Stats")
         table.add_row("", "")
         table.add_row("0", "Exit")
         
@@ -75,7 +100,7 @@ class DeduplicatorCLI:
         return choice
     
     def show_file_selector(self, directory: Path, pattern: str, label: str) -> Path:
-        """Show file selection menu"""
+        """Show file selection menu with file size info"""
         files = list(directory.glob(pattern))
         
         if not files:
@@ -91,13 +116,13 @@ class DeduplicatorCLI:
         table.add_column("Modified", style="green")
         
         for i, file in enumerate(files[:20], 1):
-            size_mb = file.stat().st_size / (1024 * 1024)
+            file_size = file.stat().st_size
             mod_time = datetime.fromtimestamp(file.stat().st_mtime)
             
             table.add_row(
                 str(i),
                 file.name,
-                f"{size_mb:.2f} MB",
+                format_bytes(file_size),  # Using helpers.format_bytes
                 mod_time.strftime("%Y-%m-%d %H:%M")
             )
         
@@ -179,6 +204,185 @@ class DeduplicatorCLI:
         
         self._process_file(file_path, file_format)
     
+    def gpu_accelerated_deduplicate(self):
+        """GPU-accelerated deduplication for large datasets"""
+        console.print("\n[bold]🚀 GPU-Accelerated Deduplication[/bold]")
+        
+        if not self.gpu.gpu_available:
+            console.print("⚠ GPU not available, will use optimized CPU deduplication", style="yellow")
+        else:
+            console.print("✓ GPU acceleration enabled", style="green")
+        
+        # Select file
+        file_path = self.show_file_selector(
+            COMBINED_EXPORT_DIR,
+            "*.json",
+            "JSON"
+        )
+        
+        if not file_path:
+            return
+        
+        try:
+            # Load data
+            console.print(f"\n[bold]Loading {file_path.name}...[/bold]")
+            data = self.input_exporter.auto_load(file_path)
+            console.print(f"✓ Loaded {len(data):,} records", style="green")
+            
+            # GPU deduplication
+            console.print("\n[bold]Performing GPU-accelerated deduplication...[/bold]")
+            
+            unique_data = self.gpu.deduplicate_gpu(
+                data,
+                key_field='taxpayer_id'
+            )
+            
+            duplicates_removed = len(data) - len(unique_data)
+            dedup_rate = (duplicates_removed / len(data) * 100) if len(data) > 0 else 0
+            
+            console.print(f"\n✓ Deduplicated: {len(data):,} → {len(unique_data):,} records", style="green bold")
+            console.print(f"  Removed {duplicates_removed:,} duplicates ({dedup_rate:.1f}%)")
+            
+            # Store for later use
+            self.last_deduplicated_data = unique_data
+            
+            # Export
+            if Confirm.ask("\nExport deduplicated data?", default=True):
+                self.export_deduplicated(unique_data, file_path.stem, 'json')
+                
+        except Exception as e:
+            console.print(f"Error: {e}", style="red bold")
+            logger.error(f"GPU deduplication error: {e}")
+    
+    def hash_based_duplicate_detection(self):
+        """Hash-based duplicate detection using helpers.generate_hash"""
+        console.print("\n[bold]🔍 Hash-Based Duplicate Detection[/bold]")
+        console.print("Uses content hash to find exact duplicates\n")
+        
+        # Select file
+        file_path = self.show_file_selector(
+            COMBINED_EXPORT_DIR,
+            "*.json",
+            "JSON"
+        )
+        
+        if not file_path:
+            return
+        
+        try:
+            # Load data
+            console.print(f"\n[bold]Loading {file_path.name}...[/bold]")
+            data = self.input_exporter.auto_load(file_path)
+            console.print(f"✓ Loaded {len(data):,} records", style="green")
+            
+            # Hash-based deduplication
+            console.print("\n[bold]Calculating content hashes...[/bold]")
+            
+            seen_hashes = {}
+            unique_data = []
+            duplicates = []
+            
+            for record in data:
+                record_hash = generate_hash(record)  # Using helpers.generate_hash
+                
+                if record_hash not in seen_hashes:
+                    seen_hashes[record_hash] = record
+                    unique_data.append(record)
+                else:
+                    duplicates.append(record)
+            
+            console.print(f"\n✓ Found {len(duplicates):,} exact duplicates", style="green bold")
+            console.print(f"  Unique records: {len(unique_data):,}")
+            
+            self.last_deduplicated_data = unique_data
+            
+            # Export
+            if Confirm.ask("\nExport deduplicated data?", default=True):
+                self.export_deduplicated(unique_data, f"{file_path.stem}_hash_dedup", 'json')
+                
+        except Exception as e:
+            console.print(f"Error: {e}", style="red bold")
+    
+    def validate_after_deduplication(self):
+        """Validate data after deduplication"""
+        console.print("\n[bold]📊 Validate After Deduplication[/bold]")
+        
+        if not self.last_deduplicated_data:
+            console.print("⚠ No deduplicated data available. Run deduplication first.", style="yellow")
+            return
+        
+        console.print(f"\nValidating {len(self.last_deduplicated_data):,} records...")
+        
+        # Validate
+        report = self.validator.validate_dataset(self.last_deduplicated_data)
+        
+        # Display report
+        table = Table(title="Validation Report")
+        table.add_column("Metric", style="cyan")
+        table.add_column("Value", style="green", justify="right")
+        
+        table.add_row("Total Records", f"{report['total_records']:,}")
+        table.add_row("Valid Records", f"{report['valid_records']:,}")
+        table.add_row("Invalid Records", f"{report['invalid_records']:,}")
+        table.add_row("Validation Rate", f"{report['validation_rate']:.1f}%")
+        
+        console.print("\n")
+        console.print(table)
+        
+        # Show sample errors
+        if report['errors']:
+            console.print("\n[bold]Sample Validation Errors:[/bold]")
+            for i, error in enumerate(report['errors'][:5], 1):
+                console.print(f"  {i}. Record {error['record_index']}: {', '.join(error['errors'])}")
+    
+    def clean_and_validate_data(self):
+        """Clean and validate data"""
+        console.print("\n[bold]🧹 Clean & Validate Data[/bold]")
+        
+        # Select file
+        file_path = self.show_file_selector(
+            COMBINED_EXPORT_DIR,
+            "*.json",
+            "JSON"
+        )
+        
+        if not file_path:
+            return
+        
+        try:
+            # Load data
+            console.print(f"\n[bold]Loading {file_path.name}...[/bold]")
+            data = self.input_exporter.auto_load(file_path)
+            console.print(f"✓ Loaded {len(data):,} records", style="green")
+            
+            # Clean
+            console.print("\nCleaning data...")
+            cleaned_data = self.validator.clean_dataset(data)
+            
+            # Standardize
+            console.print("Standardizing field names...")
+            standardized_data = self.validator.standardize_dataset(cleaned_data)
+            
+            # Validate
+            console.print("Validating...")
+            report = self.validator.validate_dataset(standardized_data)
+            
+            console.print(f"\n✓ Cleaned and validated {len(standardized_data):,} records", style="green bold")
+            console.print(f"  Valid: {report['valid_records']:,} ({report['validation_rate']:.1f}%)")
+            console.print(f"  Invalid: {report['invalid_records']:,}")
+            
+            self.last_deduplicated_data = standardized_data
+            
+            # Export
+            if Confirm.ask("\nExport cleaned data?", default=True):
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                paths = self.exporter.export_all_formats(standardized_data, f"cleaned_validated_{timestamp}")
+                for fmt, path in paths.items():
+                    console.print(f"✓ Exported {fmt.upper()}: {path}", style="green")
+                    
+        except Exception as e:
+            console.print(f"Error: {e}", style="red bold")
+    
     def _process_file(self, file_path: Path, file_format: str, auto: bool = False):
         """Process file: load, deduplicate, export"""
         try:
@@ -203,6 +407,9 @@ class DeduplicatorCLI:
                 console.print("\n[bold]Deduplicating...[/bold]")
             
             unique_data, duplicates = self.deduplicator.deduplicate(data)
+            
+            # Store for later use
+            self.last_deduplicated_data = unique_data
             
             # Show statistics
             stats = self.deduplicator.get_deduplication_stats(
@@ -241,6 +448,26 @@ class DeduplicatorCLI:
         table.add_row("Duplicates Removed", f"{stats['duplicate_count']:,}")
         table.add_row("Deduplication Rate", f"{stats['deduplication_rate']:.2f}%")
         table.add_row("Size Reduction", f"{stats['reduction_percentage']:.2f}%")
+        
+        console.print("\n")
+        console.print(table)
+    
+    def show_gpu_stats(self):
+        """Show GPU and memory statistics"""
+        console.print("\n[bold]GPU/Memory Statistics[/bold]")
+        
+        table = Table()
+        table.add_column("Metric", style="cyan")
+        table.add_column("Value", style="green")
+        
+        table.add_row("GPU Available", "✓ Yes" if self.gpu.gpu_available else "✗ No")
+        table.add_row("GPU Enabled", "✓ Yes" if self.gpu.use_gpu else "✗ No")
+        
+        if self.gpu.use_gpu:
+            mem_info = self.gpu.get_gpu_memory_info()
+            if mem_info.get('available'):
+                table.add_row("GPU Memory Used", f"{mem_info.get('used_mb', 0):.0f} MB")
+                table.add_row("GPU Memory Total", f"{mem_info.get('total_mb', 0):.0f} MB")
         
         console.print("\n")
         console.print(table)
@@ -305,6 +532,8 @@ class DeduplicatorCLI:
             
             console.print(f"✓ Reduced to {len(merged_data):,} records", style="green bold")
             
+            self.last_deduplicated_data = merged_data
+            
             # Export
             if Confirm.ask("\nExport merged data?", default=True):
                 format_map = {
@@ -341,6 +570,8 @@ class DeduplicatorCLI:
             best_data = self.deduplicator.deduplicate_by_confidence(data)
             
             console.print(f"✓ Reduced to {len(best_data):,} records", style="green bold")
+            
+            self.last_deduplicated_data = best_data
             
             # Export
             if Confirm.ask("\nExport results?", default=True):
@@ -409,7 +640,22 @@ class DeduplicatorCLI:
                     self.deduplicate_by_confidence()
                     
                 elif choice == "8":
+                    self.gpu_accelerated_deduplicate()
+                    
+                elif choice == "9":
+                    self.hash_based_duplicate_detection()
+                    
+                elif choice == "10":
+                    self.validate_after_deduplication()
+                    
+                elif choice == "11":
+                    self.clean_and_validate_data()
+                    
+                elif choice == "12":
                     self.change_strategy()
+                    
+                elif choice == "13":
+                    self.show_gpu_stats()
                     
                 else:
                     console.print("\nInvalid option", style="red")

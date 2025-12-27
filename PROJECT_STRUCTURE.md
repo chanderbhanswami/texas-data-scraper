@@ -6,6 +6,7 @@
 texas-data-scraper/
 │
 ├── .cache/                           # Cache directory
+│   └── progress/                     # Progress checkpoints for resume
 │
 ├── config/
 │   ├── __init__.py                   # Config package initialization
@@ -62,9 +63,11 @@ texas-data-scraper/
 │   │
 │   └── utils/
 │       ├── __init__.py               # Utils package initialization
+│       ├── checksum.py               # File checksum verification
 │       ├── helpers.py                # Helper functions
 │       ├── logger.py                 # Logging utilities
-│       └── menu.py                   # Interactive CLI menu
+│       ├── menu.py                   # Interactive CLI menu
+│       └── progress_manager.py       # Progress persistence for downloads
 │
 ├── tests/
 │   ├── __init__.py                   # Tests package initialization
@@ -140,6 +143,18 @@ texas-data-scraper/
 - Data validation and cleaning
 - Timestamp tracking
 - File format detection
+
+### 8. Resilience Features (v1.1.0)
+- Progress checkpoint persistence
+- Resume interrupted downloads
+- Export checksum verification
+- Data integrity protection
+
+### 9. Future Pipeline (Planned)
+- **Phase 1** (Current): Socrata + Comptroller data scraping ✅
+- **Phase 2** (Planned): Google Places API integration for business details
+- **Phase 3** (Planned): Clearbit API for company enrichment (emails, contacts, social media)
+- **Phase 4** (Planned): Unified company profile generation
 
 ## Directory Details
 
