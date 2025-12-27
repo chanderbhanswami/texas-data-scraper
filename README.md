@@ -661,9 +661,9 @@ If you use this tool in your research or project, please cite it as:
 
 ```bibtex
 @software{texas_data_scraper,
-  author = {Chanderbhanswami},
+  author = {Chanderbhan Swami},
   title = {Texas Government Data Scraper Toolkit},
-  year = {2024},
+  year = {2025},
   url = {https://github.com/chanderbhanswami/texas-data-scraper}
 }
 ```
