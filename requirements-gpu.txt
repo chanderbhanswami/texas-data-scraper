@@ -1,36 +1,72 @@
 # GPU Acceleration Dependencies for CUDA/cuDNN
+# Tested with: CUDA 13.1, RTX 3060 (6GB), Windows 11
 
 # Include base requirements
 -r requirements.txt
 
-# CUDA-enabled libraries
-cupy-cuda11x>=12.0.0  # For CUDA 11.x (adjust based on your CUDA version)
-cupy-cuda12x>=12.0.0  # Uncomment for CUDA 12.x
+# ===========================================
+# CuPy - GPU Array Library (REQUIRED)
+# ===========================================
+# For CUDA 13.x - Install with:
+# pip install cupy-cuda13x --pre -U -f https://pip.cupy.dev/pre
 
-# GPU-accelerated data processing
-cudf-cu11>=23.10.0  # RAPIDS cuDF for GPU DataFrames
-dask-cudf>=23.10.0  # Distributed GPU computing
-cudf-cu12>=23.10.0  # Uncomment for CUDA 12.x
+# For CUDA 12.x:
+# pip install cupy-cuda12x
 
-# GPU-accelerated JSON processing
-rapids-singlecell>=0.9.0
+# For CUDA 11.x:
+# pip install cupy-cuda11x
 
-# PyTorch (for additional GPU operations if needed)
+# ===========================================
+# PyTorch with CUDA (REQUIRED)
+# ===========================================
+# Auto-detects CUDA version
 torch>=2.1.0
 
-# Memory management
+# ===========================================
+# Memory & GPU Management (REQUIRED)
+# ===========================================
 numba>=0.58.0
-pynvml>=11.5.0  # NVIDIA Management Library
+pynvml>=11.5.0
 
-# Note: Install CUDA Toolkit and cuDNN separately:
-# - CUDA Toolkit: https://developer.nvidia.com/cuda-downloads
-# - cuDNN: https://developer.nvidia.com/cudnn
-# 
-# For RTX 3060, recommended versions:
-# - CUDA 11.8 or 12.x
-# - cuDNN 8.9.x or later
+# ===========================================
+# Optional: RAPIDS cuDF (Linux/WSL2 ONLY)
+# ===========================================
+# NOTE: cuDF does NOT support native Windows!
+# Only works on Linux or Windows WSL2.
 #
-# Installation order:
-# 1. Install CUDA Toolkit
-# 2. Install cuDNN
-# 3. pip install -r requirements-gpu.txt
+# If you're on WSL2, install with:
+# pip install cudf-cu13 dask-cudf --extra-index-url=https://pypi.nvidia.com
+#
+# For native Windows, we use pandas + cupy instead (works great!)
+
+# ===========================================
+# Alternative GPU Acceleration (Windows)
+# ===========================================
+# These work on native Windows as alternatives to cuDF:
+polars>=0.20.0           # Fast DataFrame library (CPU, but very fast)
+pyarrow>=14.0.0          # Fast columnar data processing
+
+# ===========================================
+# Installation Commands (CUDA 13.x)
+# ===========================================
+#
+# Step 1: Install base requirements
+#   pip install -r requirements.txt
+#
+# Step 2: Install CuPy for CUDA 13
+#   pip install cupy-cuda13x --pre -U -f https://pip.cupy.dev/pre
+#
+# Step 3: Install remaining GPU packages
+#   pip install torch numba pynvml polars pyarrow
+#
+# ===========================================
+# Your System Info
+# ===========================================
+# GPU: NVIDIA GeForce RTX 3060 (6GB VRAM)
+# CUDA: 13.1
+# Driver: 591.44
+#
+# Recommended .env settings:
+#   USE_GPU=true
+#   GPU_DEVICE_ID=0
+#   GPU_MEMORY_LIMIT=5120  # 5GB (leave 1GB for system)
