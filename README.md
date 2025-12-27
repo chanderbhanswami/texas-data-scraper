@@ -1,6 +1,6 @@
 <div align="center">
 
-# 🤠 Texas Government Data Scraper Toolkit
+# Texas Government Data Scraper Toolkit
 
 [![Python Version](https://img.shields.io/badge/python-3.8%2B-blue?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
 [![License](https://img.shields.io/badge/license-MIT-green?style=for-the-badge)](LICENSE)
@@ -29,7 +29,7 @@
 
 A comprehensive, production-ready toolkit for scraping and processing data from Texas government APIs including the Socrata Open Data Portal and Texas Comptroller API. Features GPU acceleration (CUDA/cuDNN), intelligent data merging, and automated deduplication.
 
-## 🚀 Features
+## Features
 
 ### Core Capabilities
 - **Dual API Support**: Socrata Open Data Portal + Texas Comptroller API
@@ -51,12 +51,12 @@ A comprehensive, production-ready toolkit for scraping and processing data from 
 - Detailed Taxpayer Information
 - FTAS (Franchise Tax Account Status) Records
 
-## 📋 Requirements
+## Requirements
 
 ### System Requirements
 - Python 3.8+
 - NVIDIA GPU with CUDA support (optional, for GPU acceleration)
-- CUDA Toolkit 11.8+ or 12.x
+- CUDA Toolkit 11.8+ or 12.x or 13.x
 - cuDNN 8.9.x or later
 - 8GB+ RAM (16GB recommended)
 - 10GB+ free disk space
@@ -69,7 +69,7 @@ A comprehensive, production-ready toolkit for scraping and processing data from 
 2. **Texas Comptroller API Key** (required for full access)
    - Get at: https://comptroller.texas.gov/transparency/open-data/
 
-## 🔧 Installation
+## Installation
 
 ### 1. Clone the Repository
 ```bash
@@ -137,7 +137,7 @@ python scripts/api_tester.py
 python -c "import cupy; print('GPU Available:', cupy.cuda.is_available())"
 ```
 
-## 📖 Usage Guide
+## Usage Guide
 
 ### 1. Socrata Data Scraper
 
@@ -240,7 +240,7 @@ python scripts/api_tester.py
 - Pagination and metadata retrieval
 - Error handling
 
-## 📁 Project Structure
+## Project Structure
 
 ```
 texas-data-scraper/
@@ -332,7 +332,7 @@ texas-data-scraper/
 └── setup_project.py                  # Project setup/initialization script
 ```
 
-## 🎯 Complete Workflow Example
+## Complete Workflow Example
 
 ### Full Pipeline: Socrata → Comptroller → Combine → Deduplicate
 
@@ -362,7 +362,7 @@ python scripts/deduplicator.py
 # Final data location: exports/deduplicated/
 ```
 
-## ⚙️ Configuration
+## Configuration
 
 ### Rate Limits
 
@@ -391,7 +391,7 @@ BATCH_SIZE=100              # Records per batch
 CONCURRENT_REQUESTS=5       # Simultaneous requests
 ```
 
-## 🐛 Troubleshooting
+## Troubleshooting
 
 ### Common Issues
 
@@ -426,7 +426,7 @@ pip install --upgrade -r requirements.txt
 pip install --force-reinstall -r requirements-gpu.txt
 ```
 
-## 📊 Output Formats
+## Output Formats
 
 All exports include:
 - **JSON**: Human-readable, preserves data types
@@ -439,14 +439,14 @@ All exports include:
 Example: franchise_tax_20251226_143052.json
 ```
 
-## 🔒 Data Privacy & Security
+## Data Privacy & Security
 
 - API keys stored in `.env` (gitignored)
 - No data transmitted to third parties
 - All processing done locally
 - Logs exclude sensitive information
 
-## 📈 Performance Tips
+## Performance Tips
 
 1. **Use GPU acceleration** for large datasets (10k+ records)
 2. **Enable Socrata API token** for faster downloads
@@ -454,7 +454,7 @@ Example: franchise_tax_20251226_143052.json
 4. **Batch process** large taxpayer ID lists
 5. **Clear GPU memory** between large operations
 
-## 🧪 Testing
+## Testing
 
 Run the test suite:
 
@@ -469,7 +469,7 @@ pytest tests/
 pytest tests/test_integration.py
 ```
 
-## 📝 Logging
+## Logging
 
 Logs are saved to `logs/` directory:
 - `texas_scraper_YYYY-MM-DD.log` - All operations
@@ -477,7 +477,7 @@ Logs are saved to `logs/` directory:
 - Automatic rotation at 100MB
 - Compressed archives retained
 
-## 🤝 Contributing
+## Contributing
 
 Contributions welcome! Please:
 1. Fork the repository
@@ -485,11 +485,11 @@ Contributions welcome! Please:
 3. Make your changes
 4. Submit a pull request
 
-## 📄 License
+## License
 
 [LICENSE](LICENSE)
 
-## 🆘 Support
+## Support
 
 For issues or questions:
 - Check troubleshooting section
@@ -497,7 +497,7 @@ For issues or questions:
 - Check API status pages
 - Create an issue on GitHub
 
-## 🎓 Additional Resources
+## Additional Resources
 
 - [Socrata API Documentation](https://dev.socrata.com/)
 - [Texas Open Data Portal](https://data.texas.gov/)
@@ -507,7 +507,7 @@ For issues or questions:
 
 ---
 
-## 📸 Screenshots & Demo
+## Screenshots & Demo
 
 <details>
 <summary>Click to view screenshots</summary>
@@ -537,11 +537,11 @@ Socrata API → Raw Data → Comptroller Enrichment → Merge → Deduplicate �
 
 ---
 
-## 🗺️ Roadmap
+## Roadmap
 
 See our [project roadmap](https://github.com/chanderbhanswami/texas-data-scraper/projects) for upcoming features.
 
-### Phase 1: Core Data Pipeline ✅
+### Phase 1: Core Data Pipeline
 - [x] Socrata Open Data Portal integration
 - [x] Texas Comptroller API integration
 - [x] GPU acceleration with CUDA
@@ -549,7 +549,7 @@ See our [project roadmap](https://github.com/chanderbhanswami/texas-data-scraper
 - [x] Data deduplication
 - [x] Interactive CLI menus
 
-### Phase 1.1: Resilience & Reliability ✅ (NEW)
+### Phase 1.1: Resilience & Reliability (NEW)
 - [x] Progress persistence (resume interrupted downloads)
 - [x] Export checksum verification
 - [x] Data validation and quality reports
@@ -578,7 +578,7 @@ See our [project roadmap](https://github.com/chanderbhanswami/texas-data-scraper
 
 ---
 
-## ❓ FAQ
+## FAQ
 
 <details>
 <summary><strong>Q: Do I need an NVIDIA GPU to use this tool?</strong></summary>
@@ -612,7 +612,7 @@ Please review the [LICENSE](LICENSE) file and the terms of use for the Texas Ope
 
 ---
 
-## 🙏 Acknowledgments
+## Acknowledgments
 
 - [Texas Open Data Portal](https://data.texas.gov/) - For providing open access to state data
 - [Texas Comptroller of Public Accounts](https://comptroller.texas.gov/) - For the comprehensive taxpayer API
@@ -622,7 +622,7 @@ Please review the [LICENSE](LICENSE) file and the terms of use for the Texas Ope
 
 ---
 
-## 📊 Star History
+## Star History
 
 <div align="center">
 
@@ -634,7 +634,7 @@ Please review the [LICENSE](LICENSE) file and the terms of use for the Texas Ope
 
 ---
 
-## 📞 Contact & Social Media
+## Contact & Social Media
 
 <div align="center">
 
@@ -655,7 +655,7 @@ Please review the [LICENSE](LICENSE) file and the terms of use for the Texas Ope
 
 ---
 
-## 📝 Citation
+## Citation
 
 If you use this tool in your research or project, please cite it as:
 
@@ -672,9 +672,9 @@ If you use this tool in your research or project, please cite it as:
 
 <div align="center">
 
-**Made with ❤️ in Texas**
+**Made with ❤️ by Chanderbhan Swami for data enthusiasts and researchers**
 
-🤠 **Happy Scraping, Y'all!** 🤠
+**Happy Scraping, Y'all!**
 
 [![Made with Python](https://img.shields.io/badge/Made%20with-Python-1f425f?style=flat-square&logo=python)](https://www.python.org/)
 [![Powered by CUDA](https://img.shields.io/badge/Powered%20by-CUDA-76B900?style=flat-square&logo=nvidia)](https://developer.nvidia.com/cuda-toolkit)

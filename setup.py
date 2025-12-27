@@ -20,7 +20,7 @@ if requirements_file.exists():
 
 setup(
     name="texas-data-scraper",
-    version="1.0.0",
+    version="1.1.0",
     author="Chanderbhan Swami",
     author_email="chanderbhanswami29@gmail.com",
     description="Comprehensive toolkit for scraping Texas government data from Socrata and Comptroller APIs",
@@ -40,6 +40,8 @@ setup(
         "Programming Language :: Python :: 3.9",
         "Programming Language :: Python :: 3.10",
         "Programming Language :: Python :: 3.11",
+        "Programming Language :: Python :: 3.12",
+        "Programming Language :: Python :: 3.13",
         "Operating System :: OS Independent",
     ],
     python_requires=">=3.8",
