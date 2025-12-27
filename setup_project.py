@@ -22,8 +22,10 @@ def create_directory_structure():
         'exports/comptroller',
         'exports/combined',
         'exports/deduplicated',
+        'exports/batch',
         'logs',
-        '.cache'
+        '.cache',
+        '.cache/progress'  # v1.1.0: Progress checkpoints
     ]
     
     print("Creating directory structure...")
@@ -64,7 +66,10 @@ def create_gitkeep_files():
         'exports/comptroller',
         'exports/combined',
         'exports/deduplicated',
-        'logs'
+        'exports/batch',
+        'logs',
+        '.cache',
+        '.cache/progress'
     ]
     
     print("\nCreating .gitkeep files...")
@@ -216,20 +221,31 @@ def verify_structure():
         'QUICK_START.md',
         'setup.py',
         '.gitignore',
+        'CHANGELOG.md',
+        'CONTRIBUTING.md',
+        'LICENSE',
+        'Makefile',
         'config/settings.py',
         'src/api/socrata_client.py',
         'src/api/comptroller_client.py',
         'src/api/rate_limiter.py',
         'src/scrapers/gpu_accelerator.py',
+        'src/scrapers/socrata_scraper.py',
+        'src/scrapers/comptroller_scraper.py',
         'src/processors/data_combiner.py',
         'src/processors/deduplicator.py',
+        'src/processors/data_validator.py',
         'src/exporters/file_exporter.py',
         'src/utils/logger.py',
+        'src/utils/helpers.py',
+        'src/utils/checksum.py',         # v1.1.0
+        'src/utils/progress_manager.py', # v1.1.0
         'scripts/socrata_scraper.py',
         'scripts/comptroller_scraper.py',
         'scripts/data_combiner.py',
         'scripts/deduplicator.py',
-        'scripts/api_tester.py'
+        'scripts/api_tester.py',
+        'scripts/batch_processor.py'
     ]
     
     print("\nVerifying project structure...")
@@ -252,7 +268,7 @@ def verify_structure():
 def main():
     """Main setup function"""
     print("="*70)
-    print("TEXAS DATA SCRAPER - PROJECT SETUP")
+    print("TEXAS DATA SCRAPER - PROJECT SETUP (v1.2.0)")
     print("="*70)
     print()
     
