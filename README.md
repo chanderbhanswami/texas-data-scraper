@@ -625,7 +625,7 @@ Please review the [LICENSE](LICENSE) file and the terms of use for the Texas Ope
 
 📧 **Email:** chanderbhanswami@gmail.com
 
-🐦 **Twitter:** [@Chanderbhanswa7](https://twitter.com/Chanderbhanswa7)
+🐦 **X:** [Chanderbhanswa7](https://x.com/Chanderbhanswa7)
 
 ---
 
