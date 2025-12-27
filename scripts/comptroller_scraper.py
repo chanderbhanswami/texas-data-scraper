@@ -469,23 +469,26 @@ class ComptrollerScraperCLI:
             console.print("\n⚠ No FTAS records found", style="yellow")
     
     def export_comptroller_data(self, data: list):
-        """Export comptroller data"""
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        base_filename = f"comptroller_data_{timestamp}"
+        """
+        Export comptroller data (APPENDS to existing files)
+        Uses fixed filename - new records are appended to existing file.
+        """
+        # Use fixed filename (no timestamp) so we can append
+        base_filename = "comptroller_data"
         
-        console.print(f"\n[bold]Exporting {len(data):,} records...[/bold]")
+        console.print(f"\n[bold]Exporting {len(data):,} records (append mode)...[/bold]")
         
         try:
             # Flatten data for export
             flattened_data = self.flatten_comptroller_data(data)
             
-            # Export all formats
-            paths = self.exporter.export_all_formats(flattened_data, base_filename)
+            # Use append_or_create - appends to existing or creates new
+            paths = self.exporter.append_or_create_all_formats(flattened_data, base_filename)
             
             for format_name, path in paths.items():
-                console.print(f"✓ Exported {format_name.upper()} to {path}", style="green")
+                console.print(f"✓ {format_name.upper()}: {path}", style="green")
             
-            console.print(f"\n✓ All exports complete!", style="green bold")
+            console.print(f"\n✓ Export complete! (appended to existing files)", style="green bold")
             
         except Exception as e:
             console.print(f"Export error: {e}", style="red bold")

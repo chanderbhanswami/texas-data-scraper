@@ -45,6 +45,104 @@ class SocrataScraperCLI:
         self.validator = DataValidator()  # Add validator
         self.last_data = None
         self.last_source = None
+        self._existing_ids = None  # Cache for existing IDs
+    
+    def load_existing_taxpayer_ids(self, force_reload: bool = False) -> set:
+        """
+        Load all existing taxpayer IDs from previous Socrata exports
+        (Automatic cross-dataset deduplication)
+        
+        Args:
+            force_reload: Force reload even if cached
+            
+        Returns:
+            Set of existing taxpayer IDs
+        """
+        # Return cached if available
+        if self._existing_ids is not None and not force_reload:
+            return self._existing_ids
+        
+        from src.utils.helpers import extract_taxpayer_id_from_record
+        
+        existing_ids = set()
+        export_dir = Path(SOCRATA_EXPORT_DIR)
+        
+        if not export_dir.exists():
+            self._existing_ids = existing_ids
+            return existing_ids
+        
+        # Find all JSON/CSV files in export directory
+        json_files = list(export_dir.glob("*.json"))
+        csv_files = list(export_dir.glob("*.csv"))
+        
+        all_files = json_files + csv_files
+        
+        if not all_files:
+            self._existing_ids = existing_ids
+            return existing_ids
+        
+        logger.info(f"Loading existing IDs from {len(all_files)} export files...")
+        
+        for filepath in all_files:
+            try:
+                # Skip checksum files
+                if '.checksum' in filepath.name:
+                    continue
+                
+                data = self.exporter.auto_load(filepath)
+                
+                for record in data:
+                    # Use smart extraction (handles all field name variations)
+                    tid = extract_taxpayer_id_from_record(record)
+                    if tid:
+                        existing_ids.add(tid)
+                        
+            except Exception as e:
+                logger.warning(f"Could not load {filepath.name}: {e}")
+                continue
+        
+        logger.info(f"Loaded {len(existing_ids):,} existing taxpayer IDs")
+        self._existing_ids = existing_ids
+        
+        return existing_ids
+    
+    def filter_new_records(self, data: list) -> list:
+        """
+        Filter out records that already exist in previous exports
+        
+        Args:
+            data: List of scraped records
+            
+        Returns:
+            List of new records only
+        """
+        from src.utils.helpers import extract_taxpayer_id_from_record
+        
+        existing_ids = self.load_existing_taxpayer_ids()
+        
+        if not existing_ids:
+            return data  # No existing data, all records are new
+        
+        new_records = []
+        duplicate_count = 0
+        
+        for record in data:
+            tid = extract_taxpayer_id_from_record(record)
+            
+            if tid and tid in existing_ids:
+                duplicate_count += 1
+                continue
+            
+            new_records.append(record)
+            
+            # Add to cache so subsequent scrapes in same session don't duplicate
+            if tid:
+                existing_ids.add(tid)
+        
+        if duplicate_count > 0:
+            logger.info(f"Filtered {duplicate_count:,} duplicate records (already in previous exports)")
+        
+        return new_records
         
     def show_banner(self):
         """Show welcome banner"""
@@ -143,8 +241,13 @@ class SocrataScraperCLI:
         return datasets[choice]
     
     def download_full_dataset(self, dataset_name: str, dataset_id: str):
-        """Download full dataset using scraper wrapper"""
+        """Download full dataset using scraper wrapper (auto-deduplicates)"""
         console.print(f"\n[bold]Downloading {dataset_name} (full dataset)...[/bold]")
+        
+        # Show existing records status
+        existing_ids = self.load_existing_taxpayer_ids()
+        if existing_ids:
+            console.print(f"📋 Found {len(existing_ids):,} existing records (will skip duplicates)", style="cyan")
         
         if self.scraper.gpu.use_gpu:
             console.print("🚀 GPU acceleration enabled for post-processing", style="cyan")
@@ -174,14 +277,26 @@ class SocrataScraperCLI:
                 progress.update(task, completed=True)
             
             if data:
+                original_count = len(data)
+                
+                # AUTO-DEDUPLICATE: Filter out records that already exist
+                data = self.filter_new_records(data)
+                filtered_count = original_count - len(data)
+                
                 self.last_data = data
                 self.last_source = dataset_name
                 
-                console.print(f"\n✓ Downloaded {len(data):,} records", style="green bold")
+                console.print(f"\n✓ Downloaded {original_count:,} records", style="green bold")
+                if filtered_count > 0:
+                    console.print(f"  ↳ Skipped {filtered_count:,} duplicates (already in previous exports)", style="yellow")
+                console.print(f"  ↳ New records: {len(data):,}", style="green")
                 
-                # Auto-export
-                if Confirm.ask("Export data now?", default=True):
-                    self.export_data(data, dataset_name)
+                if len(data) > 0:
+                    # Auto-export
+                    if Confirm.ask("Export new records?", default=True):
+                        self.export_data(data, dataset_name)
+                else:
+                    console.print("No new records to export (all records already exist)", style="yellow")
             else:
                 console.print("No data found", style="yellow")
                 
@@ -190,10 +305,15 @@ class SocrataScraperCLI:
             logger.error(f"Download error: {e}")
     
     def download_custom_limit(self, dataset_name: str, dataset_id: str):
-        """Download dataset with custom limit"""
+        """Download dataset with custom limit (auto-deduplicates)"""
         limit = IntPrompt.ask(f"\nEnter number of records to download", default=1000)
         
         console.print(f"\n[bold]Downloading {dataset_name} ({limit:,} records)...[/bold]")
+        
+        # Show existing records status
+        existing_ids = self.load_existing_taxpayer_ids()
+        if existing_ids:
+            console.print(f"📋 Found {len(existing_ids):,} existing records (will skip duplicates)", style="cyan")
         
         try:
             # Use scraper wrapper
@@ -204,13 +324,25 @@ class SocrataScraperCLI:
             )
             
             if data:
+                original_count = len(data)
+                
+                # AUTO-DEDUPLICATE: Filter out records that already exist
+                data = self.filter_new_records(data)
+                filtered_count = original_count - len(data)
+                
                 self.last_data = data
                 self.last_source = dataset_name
                 
-                console.print(f"\n✓ Downloaded {len(data):,} records", style="green bold")
+                console.print(f"\n✓ Downloaded {original_count:,} records", style="green bold")
+                if filtered_count > 0:
+                    console.print(f"  ↳ Skipped {filtered_count:,} duplicates (already in previous exports)", style="yellow")
+                console.print(f"  ↳ New records: {len(data):,}", style="green")
                 
-                if Confirm.ask("Export data now?", default=True):
-                    self.export_data(data, dataset_name)
+                if len(data) > 0:
+                    if Confirm.ask("Export new records?", default=True):
+                        self.export_data(data, dataset_name)
+                else:
+                    console.print("No new records to export (all records already exist)", style="yellow")
             else:
                 console.print("No data found", style="yellow")
                 
@@ -419,30 +551,32 @@ class SocrataScraperCLI:
                 console.print(f"  {key}: {value}")
     
     def export_data(self, data: list, source_name: str):
-        """Export data to multiple formats"""
+        """
+        Export data to multiple formats (APPENDS to existing files)
+        Uses fixed filenames per dataset - no timestamps.
+        New records are appended to existing files.
+        """
         if not data:
             console.print("No data to export", style="yellow")
             return
         
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        base_filename = f"{source_name}_{timestamp}"
+        # Use fixed filename (no timestamp) so we can append
+        # Convert source name to a clean filename
+        base_filename = source_name.lower().replace(' ', '_').replace('-', '_')
         
-        console.print(f"\n[bold]Exporting {len(data):,} records...[/bold]")
+        console.print(f"\n[bold]Exporting {len(data):,} records (append mode)...[/bold]")
         
         try:
-            # Export JSON
-            json_path = self.exporter.export_json(data, f"{base_filename}.json")
-            console.print(f"✓ Exported JSON to {json_path}", style="green")
+            # Use append_or_create method - appends to existing or creates new
+            results = self.exporter.append_or_create_all_formats(data, base_filename)
             
-            # Export CSV
-            csv_path = self.exporter.export_csv(data, f"{base_filename}.csv")
-            console.print(f"✓ Exported CSV to {csv_path}", style="green")
+            for format_type, path in results.items():
+                console.print(f"✓ {format_type.upper()}: {path}", style="green")
             
-            # Export Excel
-            excel_path = self.exporter.export_excel(data, f"{base_filename}.xlsx")
-            console.print(f"✓ Exported Excel to {excel_path}", style="green")
+            console.print(f"\n✓ Export complete! (appended to existing files)", style="green bold")
             
-            console.print(f"\n✓ All exports complete!", style="green bold")
+            # Reload the cached existing IDs to include newly exported records
+            self._existing_ids = None  # Clear cache so next scrape picks up new records
             
         except Exception as e:
             console.print(f"Export error: {e}", style="red bold")

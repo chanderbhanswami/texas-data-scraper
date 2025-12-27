@@ -200,6 +200,185 @@ class FileExporter:
             logger.error(f"Error exporting to multiple formats: {e}")
             raise
     
+    def append_or_create_all_formats(self, data: List[Dict], base_filename: str) -> Dict[str, Path]:
+        """
+        Append data to existing files OR create new files if they don't exist.
+        This is the preferred method for incremental scraping.
+        
+        Args:
+            data: New data to append
+            base_filename: Base filename (without extension, no timestamp)
+            
+        Returns:
+            Dictionary mapping format to filepath
+        """
+        results = {}
+        
+        try:
+            # Append/create JSON
+            json_path = self.append_json(data, f"{base_filename}.json")
+            results['json'] = json_path
+            
+            # Append/create CSV
+            csv_path = self.append_csv(data, f"{base_filename}.csv")
+            results['csv'] = csv_path
+            
+            # Append/create Excel
+            excel_path = self.append_excel(data, f"{base_filename}.xlsx")
+            results['excel'] = excel_path
+            
+            logger.info(f"Appended/created data in all formats: {base_filename}")
+            return results
+            
+        except Exception as e:
+            logger.error(f"Error appending to multiple formats: {e}")
+            raise
+    
+    def append_json(self, new_data: List[Dict], filename: str) -> Path:
+        """
+        Append new data to existing JSON file or create new file
+        
+        Args:
+            new_data: New records to append
+            filename: Target filename
+            
+        Returns:
+            Path to file
+        """
+        filepath = self.export_dir / filename
+        existing_data = []
+        
+        # Load existing data if file exists
+        if filepath.exists():
+            try:
+                with open(filepath, 'r', encoding='utf-8') as f:
+                    existing_data = json.load(f)
+                logger.info(f"Loaded {len(existing_data)} existing records from {filename}")
+            except Exception as e:
+                logger.warning(f"Could not load existing JSON: {e}")
+                existing_data = []
+        
+        # Combine data
+        combined_data = existing_data + new_data
+        
+        # Write combined data
+        with open(filepath, 'w', encoding='utf-8') as f:
+            json.dump(combined_data, f, indent=2, ensure_ascii=False)
+        
+        # Generate checksum
+        if self.generate_checksums:
+            generate_export_checksum(filepath, len(combined_data))
+        
+        logger.info(f"Appended {len(new_data)} records to JSON (total: {len(combined_data)}): {filepath}")
+        return filepath
+    
+    def append_csv(self, new_data: List[Dict], filename: str) -> Path:
+        """
+        Append new data to existing CSV file or create new file
+        
+        Args:
+            new_data: New records to append  
+            filename: Target filename
+            
+        Returns:
+            Path to file
+        """
+        filepath = self.export_dir / filename
+        existing_data = []
+        
+        # Load existing data if file exists
+        if filepath.exists():
+            try:
+                df_existing = pd.read_csv(filepath, encoding='utf-8-sig')
+                existing_data = df_existing.to_dict('records')
+                logger.info(f"Loaded {len(existing_data)} existing records from {filename}")
+            except Exception as e:
+                logger.warning(f"Could not load existing CSV: {e}")
+                existing_data = []
+        
+        # Combine data
+        combined_data = existing_data + new_data
+        
+        # Write combined data
+        df = pd.DataFrame(combined_data)
+        df.to_csv(filepath, index=False, encoding='utf-8-sig')
+        
+        # Generate checksum
+        if self.generate_checksums:
+            generate_export_checksum(filepath, len(combined_data))
+        
+        logger.info(f"Appended {len(new_data)} records to CSV (total: {len(combined_data)}): {filepath}")
+        return filepath
+    
+    def append_excel(self, new_data: List[Dict], filename: str, sheet_name: str = "Data") -> Path:
+        """
+        Append new data to existing Excel file or create new file
+        
+        Args:
+            new_data: New records to append
+            filename: Target filename
+            sheet_name: Excel sheet name
+            
+        Returns:
+            Path to file
+        """
+        filepath = self.export_dir / filename
+        existing_data = []
+        
+        # Load existing data if file exists
+        if filepath.exists():
+            try:
+                df_existing = pd.read_excel(filepath, sheet_name=sheet_name)
+                existing_data = df_existing.to_dict('records')
+                logger.info(f"Loaded {len(existing_data)} existing records from {filename}")
+            except Exception as e:
+                logger.warning(f"Could not load existing Excel: {e}")
+                existing_data = []
+        
+        # Combine data
+        combined_data = existing_data + new_data
+        
+        if not combined_data:
+            logger.warning("No data to export")
+            return filepath
+        
+        # Write combined data with formatting
+        df = pd.DataFrame(combined_data)
+        
+        with pd.ExcelWriter(filepath, engine='xlsxwriter') as writer:
+            df.to_excel(writer, sheet_name=sheet_name, index=False)
+            
+            # Get workbook and worksheet
+            workbook = writer.book
+            worksheet = writer.sheets[sheet_name]
+            
+            # Add header formatting
+            header_format = workbook.add_format({
+                'bold': True,
+                'bg_color': '#4472C4',
+                'font_color': 'white',
+                'border': 1
+            })
+            
+            # Apply header format
+            for col_num, value in enumerate(df.columns.values):
+                worksheet.write(0, col_num, value, header_format)
+            
+            # Auto-adjust column widths
+            for i, col in enumerate(df.columns):
+                max_length = max(
+                    df[col].astype(str).apply(len).max(),
+                    len(str(col))
+                )
+                worksheet.set_column(i, i, min(max_length + 2, 50))
+        
+        # Generate checksum
+        if self.generate_checksums:
+            generate_export_checksum(filepath, len(combined_data))
+        
+        logger.info(f"Appended {len(new_data)} records to Excel (total: {len(combined_data)}): {filepath}")
+        return filepath
+    
     def load_json(self, filepath: Path, verify: bool = True) -> List[Dict]:
         """Load data from JSON file with optional checksum verification"""
         try:
