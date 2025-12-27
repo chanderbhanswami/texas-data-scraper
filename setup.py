@@ -21,12 +21,12 @@ if requirements_file.exists():
 setup(
     name="texas-data-scraper",
     version="1.0.0",
-    author="Your Name",
-    author_email="your.email@example.com",
+    author="Chanderbhan Swami",
+    author_email="chanderbhanswami29@gmail.com",
     description="Comprehensive toolkit for scraping Texas government data from Socrata and Comptroller APIs",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://github.com/yourusername/texas-data-scraper",
+    url="https://github.com/chanderbhanswami/texas-data-scraper",
     packages=find_packages(),
     classifiers=[
         "Development Status :: 4 - Beta",
@@ -97,8 +97,8 @@ setup(
         "cuda",
     ],
     project_urls={
-        "Bug Reports": "https://github.com/yourusername/texas-data-scraper/issues",
-        "Source": "https://github.com/yourusername/texas-data-scraper",
-        "Documentation": "https://github.com/yourusername/texas-data-scraper/blob/main/README.md",
+        "Bug Reports": "https://github.com/chanderbhanswami/texas-data-scraper/issues",
+        "Source": "https://github.com/chanderbhanswami/texas-data-scraper",
+        "Documentation": "https://github.com/chanderbhanswami/texas-data-scraper/blob/main/README.md",
     },
 )
