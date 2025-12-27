@@ -1,11 +1,16 @@
 """
 Data Combiner - Merge Socrata and Comptroller data
-With GPU acceleration support
+With GPU acceleration support and smart field normalization
 """
 from typing import List, Dict, Any, Optional
 from collections import defaultdict
 from src.utils.logger import get_logger
-from src.utils.helpers import merge_dicts, flatten_dict
+from src.utils.helpers import (
+    merge_dicts, flatten_dict, 
+    normalize_field_name, normalize_record_fields, 
+    extract_taxpayer_id_from_record, smart_merge_records,
+    TAXPAYER_ID_FIELDS
+)
 from config.settings import data_config
 
 # Try to import GPU accelerator
@@ -80,7 +85,7 @@ class DataCombiner:
     
     def _index_by_taxpayer_id(self, data: List[Dict], source: str) -> Dict[str, Dict]:
         """
-        Index data by taxpayer ID
+        Index data by taxpayer ID (case-insensitive field matching)
         
         Args:
             data: List of records
@@ -91,29 +96,16 @@ class DataCombiner:
         """
         index = {}
         
-        # Possible taxpayer ID field names
-        id_fields = [
-            'taxpayer_id',
-            'taxpayer_number',
-            'taxpayerid',
-            'taxpayernumber',
-            'tax_payer_number',
-            'taxpayer_no',
-            'id'
-        ]
-        
         for record in data:
-            taxpayer_id = None
-            
-            # Find taxpayer ID in record
-            for field in id_fields:
-                if field in record and record[field]:
-                    taxpayer_id = str(record[field]).strip()
-                    break
+            # Use smart extraction (handles all field name variations)
+            taxpayer_id = extract_taxpayer_id_from_record(record)
             
             if taxpayer_id:
+                # Normalize field names before storing
+                normalized_record = normalize_record_fields(record)
+                
                 # Add source prefix to all fields
-                prefixed_record = {f"{source}_{k}": v for k, v in record.items()}
+                prefixed_record = {f"{source}_{k}": v for k, v in normalized_record.items()}
                 prefixed_record['taxpayer_id'] = taxpayer_id
                 prefixed_record['data_source'] = source
                 

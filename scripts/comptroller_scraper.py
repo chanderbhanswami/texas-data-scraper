@@ -173,7 +173,8 @@ class ComptrollerScraperCLI:
     
     def extract_taxpayer_ids(self, data: list) -> list:
         """
-        Extract taxpayer IDs from Socrata data using helpers.clean_taxpayer_id
+        Extract taxpayer IDs from Socrata data using smart field detection
+        (case-insensitive, handles all field name variations)
         
         Args:
             data: Socrata export data
@@ -181,27 +182,16 @@ class ComptrollerScraperCLI:
         Returns:
             List of cleaned taxpayer IDs
         """
+        from src.utils.helpers import extract_taxpayer_id_from_record
+        
         taxpayer_ids = []
         
-        # Common field names for taxpayer IDs
-        id_fields = [
-            'taxpayer_number',
-            'taxpayer_id',
-            'taxpayernumber',
-            'taxpayerid',
-            'tax_payer_number',
-            'taxpayer_no',
-            'id'
-        ]
-        
         for record in data:
-            for field in id_fields:
-                if field in record and record[field]:
-                    # Use clean_taxpayer_id from helpers
-                    cleaned_id = clean_taxpayer_id(str(record[field]))
-                    if cleaned_id and cleaned_id not in taxpayer_ids:
-                        taxpayer_ids.append(cleaned_id)
-                    break
+            # Use smart extraction that handles all field name variations
+            cleaned_id = extract_taxpayer_id_from_record(record)
+            
+            if cleaned_id and cleaned_id not in taxpayer_ids:
+                taxpayer_ids.append(cleaned_id)
         
         return taxpayer_ids
     

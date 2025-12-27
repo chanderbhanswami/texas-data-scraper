@@ -555,3 +555,326 @@ def retry_on_exception(func: callable, max_retries: int = 3,
             time.sleep(delay * (attempt + 1))
     
     return None
+
+
+# =============================================================================
+# SMART FIELD DETECTION AND NORMALIZATION (v1.1.0)
+# =============================================================================
+
+# Comprehensive list of taxpayer ID field name variations
+TAXPAYER_ID_FIELDS = [
+    'taxpayer_id',
+    'taxpayer_number', 
+    'taxpayerid',
+    'taxpayernumber',
+    'taxpayerId',
+    'taxpayerID',
+    'TaxpayerID',
+    'TaxpayerNumber',
+    'TAXPAYER_ID',
+    'TAXPAYER_NUMBER',
+    'tax_payer_number',
+    'tax_payer_id',
+    'taxpayer_no',
+    'taxpayerno',
+    'txpayer_id',
+    'txpayer_number',
+    'tp_id',
+    'tp_number',
+    'id',
+]
+
+# Semantic field mapping - maps various field names to canonical names
+# Format: canonical_name -> [list of variations]
+FIELD_SYNONYMS = {
+    # Address fields
+    'zip_code': [
+        'zipcode', 'zip', 'zipnumber', 'zip_number', 'postalcode', 
+        'postal_code', 'postcode', 'post_code', 'zip_cd', 'zipcd'
+    ],
+    'city': [
+        'city_name', 'cityname', 'town', 'municipality', 'location_city'
+    ],
+    'state': [
+        'state_code', 'statecode', 'state_name', 'statename', 'st', 'state_cd'
+    ],
+    'street_address': [
+        'address', 'street', 'address1', 'address_1', 'street_address_1',
+        'address_line_1', 'addressline1', 'mailing_address', 'physical_address'
+    ],
+    'address_2': [
+        'address2', 'address_line_2', 'addressline2', 'suite', 'unit', 'apt'
+    ],
+    
+    # Business information
+    'business_name': [
+        'businessname', 'company_name', 'companyname', 'entity_name',
+        'entityname', 'legal_name', 'legalname', 'taxpayer_name', 
+        'taxpayername', 'name', 'dba', 'doing_business_as'
+    ],
+    'phone': [
+        'phone_number', 'phonenumber', 'telephone', 'tel', 'phone_no',
+        'contact_phone', 'business_phone', 'primary_phone'
+    ],
+    'email': [
+        'email_address', 'emailaddress', 'e_mail', 'contact_email',
+        'business_email', 'primary_email'
+    ],
+    
+    # Registration fields
+    'registration_date': [
+        'reg_date', 'regdate', 'date_registered', 'registration_dt',
+        'register_date', 'reg_dt', 'filing_date', 'filingdate'
+    ],
+    'status': [
+        'entity_status', 'entitystatus', 'account_status', 'accountstatus',
+        'filing_status', 'filingstatus', 'active_status', 'current_status'
+    ],
+    
+    # ID fields
+    'taxpayer_id': [
+        'taxpayer_number', 'taxpayerid', 'taxpayernumber', 'taxpayerId',
+        'taxpayerID', 'TaxpayerID', 'TaxpayerNumber', 'TAXPAYER_ID',
+        'TAXPAYER_NUMBER', 'tax_payer_number', 'tax_payer_id', 'taxpayer_no',
+        'txpayer_id', 'txpayer_number', 'tp_id', 'tp_number'
+    ],
+    'file_number': [
+        'filenumber', 'file_no', 'fileno', 'filing_number', 'filingnumber'
+    ],
+}
+
+# Build reverse lookup: variation -> canonical name
+_FIELD_NORMALIZATION_MAP = {}
+for canonical, variations in FIELD_SYNONYMS.items():
+    for variation in variations:
+        _FIELD_NORMALIZATION_MAP[variation.lower()] = canonical
+        _FIELD_NORMALIZATION_MAP[variation] = canonical
+
+
+def normalize_field_name(field_name: str) -> str:
+    """
+    Normalize a field name to its canonical form
+    
+    Args:
+        field_name: Original field name (any case/format)
+        
+    Returns:
+        Canonical field name or original if no mapping exists
+        
+    Examples:
+        normalize_field_name('zipcode') -> 'zip_code'
+        normalize_field_name('TaxpayerNumber') -> 'taxpayer_id'
+        normalize_field_name('businessName') -> 'business_name'
+    """
+    if not field_name:
+        return field_name
+    
+    # Check exact match first
+    if field_name in _FIELD_NORMALIZATION_MAP:
+        return _FIELD_NORMALIZATION_MAP[field_name]
+    
+    # Check lowercase match
+    lower_name = field_name.lower()
+    if lower_name in _FIELD_NORMALIZATION_MAP:
+        return _FIELD_NORMALIZATION_MAP[lower_name]
+    
+    # No mapping found - convert camelCase to snake_case at least
+    return camel_to_snake(field_name)
+
+
+def camel_to_snake(name: str) -> str:
+    """
+    Convert camelCase or PascalCase to snake_case
+    
+    Args:
+        name: CamelCase string
+        
+    Returns:
+        snake_case string
+    """
+    # Insert underscore before uppercase letters
+    s1 = re.sub('(.)([A-Z][a-z]+)', r'\1_\2', name)
+    # Handle consecutive uppercase letters
+    s2 = re.sub('([a-z0-9])([A-Z])', r'\1_\2', s1)
+    return s2.lower()
+
+
+def find_taxpayer_id_field(record: Dict) -> Optional[str]:
+    """
+    Find the taxpayer ID field name in a record (case-insensitive)
+    
+    Args:
+        record: Data record dictionary
+        
+    Returns:
+        The actual field name containing taxpayer ID, or None
+    """
+    if not record:
+        return None
+    
+    # Get all field names in the record (lowercase for comparison)
+    record_fields_lower = {k.lower(): k for k in record.keys()}
+    
+    # Check each possible taxpayer ID field name
+    for id_field in TAXPAYER_ID_FIELDS:
+        # Check lowercase match
+        if id_field.lower() in record_fields_lower:
+            actual_field = record_fields_lower[id_field.lower()]
+            if record.get(actual_field):  # Make sure it has a value
+                return actual_field
+    
+    return None
+
+
+def extract_taxpayer_id_from_record(record: Dict) -> Optional[str]:
+    """
+    Extract and clean taxpayer ID from a record (case-insensitive field matching)
+    
+    Args:
+        record: Data record dictionary
+        
+    Returns:
+        Cleaned taxpayer ID or None
+    """
+    field_name = find_taxpayer_id_field(record)
+    
+    if field_name:
+        raw_value = record.get(field_name)
+        return clean_taxpayer_id(str(raw_value))
+    
+    return None
+
+
+def normalize_record_fields(record: Dict, 
+                            normalize_keys: bool = True,
+                            lowercase_keys: bool = False) -> Dict:
+    """
+    Normalize all field names in a record to canonical forms
+    
+    Args:
+        record: Original record
+        normalize_keys: Apply semantic normalization
+        lowercase_keys: Convert all keys to lowercase
+        
+    Returns:
+        Record with normalized field names
+    """
+    if not record:
+        return record
+    
+    normalized = {}
+    
+    for key, value in record.items():
+        if normalize_keys:
+            new_key = normalize_field_name(key)
+        elif lowercase_keys:
+            new_key = key.lower()
+        else:
+            new_key = key
+        
+        # Handle key conflicts - prefer non-empty values
+        if new_key in normalized:
+            # Keep the existing value if new one is empty
+            if not value and normalized[new_key]:
+                continue
+        
+        normalized[new_key] = value
+    
+    return normalized
+
+
+def find_matching_fields(record1: Dict, record2: Dict) -> Dict[str, str]:
+    """
+    Find semantically matching fields between two records
+    
+    Args:
+        record1: First record
+        record2: Second record
+        
+    Returns:
+        Dictionary mapping record1 field names to matching record2 field names
+    """
+    matches = {}
+    
+    # Normalize both records' field names
+    norm1 = {normalize_field_name(k): k for k in record1.keys()}
+    norm2 = {normalize_field_name(k): k for k in record2.keys()}
+    
+    # Find matches
+    for canonical, original1 in norm1.items():
+        if canonical in norm2:
+            matches[original1] = norm2[canonical]
+    
+    return matches
+
+
+def get_field_value_by_semantic_name(record: Dict, semantic_name: str) -> Optional[Any]:
+    """
+    Get field value by semantic name (tries all known variations)
+    
+    Args:
+        record: Data record
+        semantic_name: Canonical field name (e.g., 'zip_code')
+        
+    Returns:
+        Field value or None
+    """
+    if not record or not semantic_name:
+        return None
+    
+    # Build list of names to try
+    names_to_try = [semantic_name]
+    
+    if semantic_name in FIELD_SYNONYMS:
+        names_to_try.extend(FIELD_SYNONYMS[semantic_name])
+    
+    # Also try the semantic name in different cases
+    names_to_try.extend([
+        semantic_name.upper(),
+        semantic_name.title(),
+        semantic_name.replace('_', ''),
+    ])
+    
+    # Get lowercase record keys for matching
+    record_lower = {k.lower(): (k, v) for k, v in record.items()}
+    
+    for name in names_to_try:
+        # Try exact match first
+        if name in record:
+            return record[name]
+        
+        # Try lowercase match
+        if name.lower() in record_lower:
+            return record_lower[name.lower()][1]
+    
+    return None
+
+
+def smart_merge_records(record1: Dict, record2: Dict, 
+                        priority: str = 'record2') -> Dict:
+    """
+    Smart merge two records with semantic field matching
+    
+    Args:
+        record1: First record (typically Socrata)
+        record2: Second record (typically Comptroller)
+        priority: Which record to prioritize for conflicts ('record1' or 'record2')
+        
+    Returns:
+        Merged record with normalized field names
+    """
+    # Normalize both records
+    norm1 = normalize_record_fields(record1)
+    norm2 = normalize_record_fields(record2)
+    
+    # Merge based on priority
+    if priority == 'record2':
+        merged = {**norm1, **norm2}
+    else:
+        merged = {**norm2, **norm1}
+    
+    # Ensure key fields are preserved
+    merged['_source_record1_fields'] = list(record1.keys())
+    merged['_source_record2_fields'] = list(record2.keys())
+    
+    return merged
