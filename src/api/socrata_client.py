@@ -8,7 +8,7 @@ from typing import List, Dict, Optional, Any
 from urllib.parse import urljoin
 from src.api.rate_limiter import RateLimiter, AsyncRateLimiter, BackoffRetry
 from src.utils.logger import get_logger
-from config.settings import socrata_config, rate_limit_config, advanced_config
+from config.settings import socrata_config, rate_limit_config, advanced_config, batch_config
 
 logger = get_logger(__name__)
 
@@ -96,22 +96,26 @@ class SocrataClient:
             raise
     
     def get_all(self, dataset_id: str, params: Optional[Dict] = None, 
-                batch_size: int = 1000) -> List[Dict]:
+                batch_size: int = None) -> List[Dict]:
         """
         Get all data from dataset with pagination
         
         Args:
             dataset_id: Dataset identifier
             params: Query parameters
-            batch_size: Records per request
+            batch_size: Records per request (None = use config default)
             
         Returns:
             All records from dataset
         """
+        # Use config default if not specified
+        if batch_size is None:
+            batch_size = batch_config.BATCH_SIZE
+            
         all_data = []
         offset = 0
         
-        logger.info(f"Starting full dataset download: {dataset_id}")
+        logger.info(f"Starting full dataset download: {dataset_id} (batch_size={batch_size})")
         
         while True:
             batch = self.get(dataset_id, params=params, limit=batch_size, offset=offset)
@@ -145,9 +149,10 @@ class SocrataClient:
         Returns:
             Matching records
         """
-        # Build SoQL WHERE clause
+        # Build SoQL WHERE clause (case-insensitive)
+        # Texas data is stored in UPPERCASE, so we uppercase both sides
         params = {
-            '$where': f"{field} LIKE '%{value}%'"
+            '$where': f"UPPER({field}) LIKE UPPER('%{value}%')"
         }
         
         if limit:
