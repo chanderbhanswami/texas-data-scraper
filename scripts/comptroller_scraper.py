@@ -88,36 +88,37 @@ class ComptrollerScraperCLI:
         # Auto-detect options
         table.add_row("1", "Process Socrata Export (Auto-detect)")
         table.add_row("2", "Process Socrata Export (Manual path)")
-        table.add_row("3", "Batch Process Taxpayer IDs from file")
+        table.add_row("3", "📁 Process ALL Socrata Files (combined)")
+        table.add_row("4", "Batch Process Taxpayer IDs from file")
         table.add_row("", "")
         
         # Single lookup
-        table.add_row("4", "Single Taxpayer Lookup (details + FTAS)")
-        table.add_row("5", "Single Taxpayer - Details Only")
-        table.add_row("6", "Single Taxpayer - FTAS Only")
+        table.add_row("5", "Single Taxpayer Lookup (details + FTAS)")
+        table.add_row("6", "Single Taxpayer - Details Only")
+        table.add_row("7", "Single Taxpayer - FTAS Only")
         table.add_row("", "")
         
-        # Advanced features (NEW)
-        table.add_row("7", "🚀 Enrich Socrata Data Directly")
-        table.add_row("8", "📊 Scrape with Validation (clean IDs)")
-        table.add_row("9", "💾 Scrape with Caching (skip duplicates)")
-        table.add_row("10", "🔍 Search by Business Name (batch)")
+        # Advanced features
+        table.add_row("8", "🚀 Enrich Socrata Data Directly")
+        table.add_row("9", "📊 Scrape with Validation (clean IDs)")
+        table.add_row("10", "💾 Scrape with Caching (skip duplicates)")
+        table.add_row("11", "🔍 Search by Business Name (batch)")
         table.add_row("", "")
         
         # Utilities
-        table.add_row("11", "Export Last Retrieved Data")
-        table.add_row("12", "View Rate Limiter Stats")
-        table.add_row("13", "View GPU/Scraper Stats")
-        table.add_row("14", "View Cache Stats")
-        table.add_row("15", "Clear Cache")
+        table.add_row("12", "Export Last Retrieved Data")
+        table.add_row("13", "View Rate Limiter Stats")
+        table.add_row("14", "View GPU/Scraper Stats")
+        table.add_row("15", "View Cache Stats")
+        table.add_row("16", "Clear Cache")
         table.add_row("", "")
         # Validation options
-        table.add_row("16", "📊 Validate & Clean Data")
-        table.add_row("17", "🧹 View Data Quality Report")
+        table.add_row("17", "📊 Validate & Clean Data")
+        table.add_row("18", "🧹 View Data Quality Report")
         table.add_row("", "")
         # Recovery options
-        table.add_row("18", "🔄 Resume Last Session")
-        table.add_row("19", "🗑 View/Clear Saved Progress")
+        table.add_row("19", "🔄 Resume Last Session")
+        table.add_row("20", "🗑 View/Clear Saved Progress")
         table.add_row("", "")
         table.add_row("0", "Exit")
         
@@ -126,15 +127,27 @@ class ComptrollerScraperCLI:
         choice = Prompt.ask("\nSelect an option", default="0")
         return choice
     
-    def detect_socrata_files(self) -> list:
-        """Auto-detect Socrata export files"""
+    def detect_socrata_files(self, json_only: bool = False) -> list:
+        """
+        Auto-detect Socrata export files
+        
+        Args:
+            json_only: If True, only return JSON files (for bulk processing to avoid duplication)
+                       If False, return all files (for single file selection)
+        """
         socrata_dir = Path(SOCRATA_EXPORT_DIR)
         
-        # Find JSON and CSV files
-        json_files = list(socrata_dir.glob("*.json"))
-        csv_files = list(socrata_dir.glob("*.csv"))
+        # Find JSON files (preferred - faster to load, smaller)
+        json_files = [f for f in socrata_dir.glob("*.json") if '.checksum' not in f.name]
         
-        all_files = json_files + csv_files
+        if json_only:
+            # For bulk processing, ONLY use JSON to avoid duplication
+            # (CSV and Excel contain the same data)
+            all_files = json_files
+        else:
+            # For single file selection, show all formats
+            csv_files = list(socrata_dir.glob("*.csv"))
+            all_files = json_files + csv_files
         
         # Sort by modification time (newest first)
         all_files.sort(key=lambda x: x.stat().st_mtime, reverse=True)
@@ -221,12 +234,105 @@ class ComptrollerScraperCLI:
                 console.print("⚠ No taxpayer IDs found in data", style="yellow")
                 return
             
-            # Process taxpayer IDs
-            self.batch_process_taxpayer_ids(taxpayer_ids)
+            # Extract source name from filename for separate export files
+            source_name = selected_file.stem  # e.g., "franchise_tax_permit_holders"
+            
+            # Process taxpayer IDs with source tracking
+            self.batch_process_taxpayer_ids(taxpayer_ids, source_name=source_name)
             
         except Exception as e:
             console.print(f"Error: {e}", style="red bold")
             logger.error(f"Processing error: {e}")
+    
+    def process_all_socrata_files(self):
+        """Process ALL Socrata export files at once (combined)"""
+        console.print("\n[bold]📁 Process ALL Socrata Files[/bold]")
+        console.print("This will extract taxpayer IDs from ALL Socrata JSON exports and process them.")
+        console.print("(Using JSON only to avoid duplication with CSV/Excel)\n")
+        
+        # Use json_only=True to avoid duplication (CSV/Excel have same data)
+        files = self.detect_socrata_files(json_only=True)
+        
+        if not files:
+            console.print("⚠ No Socrata export files found", style="yellow")
+            console.print(f"Expected location: {SOCRATA_EXPORT_DIR}", style="yellow")
+            return
+        
+        # Show what will be processed
+        console.print(f"[bold]Found {len(files)} Socrata export files:[/bold]")
+        total_size = 0
+        for i, f in enumerate(files[:20], 1):
+            size_mb = f.stat().st_size / (1024 * 1024)
+            total_size += size_mb
+            console.print(f"  {i}. {f.name} ({size_mb:.1f} MB)")
+        
+        if len(files) > 20:
+            console.print(f"  ... and {len(files) - 20} more files")
+        
+        console.print(f"\n[bold]Total size: {total_size:.1f} MB[/bold]")
+        
+        if not Confirm.ask("\nProcess all these files?", default=True):
+            return
+        
+        # Load all files and extract unique taxpayer IDs
+        console.print("\n[bold]Loading all files...[/bold]")
+        
+        all_taxpayer_ids = set()
+        total_records = 0
+        
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            BarColumn(),
+            TextColumn("[progress.percentage]{task.completed}/{task.total}"),
+            console=console
+        ) as progress:
+            task = progress.add_task("Loading files...", total=len(files))
+            
+            for filepath in files:
+                try:
+                    # Skip checksum files
+                    if '.checksum' in filepath.name:
+                        progress.advance(task)
+                        continue
+                    
+                    data = self.exporter.auto_load(filepath)
+                    total_records += len(data)
+                    
+                    # Extract IDs from this file
+                    file_ids = self.extract_taxpayer_ids(data)
+                    all_taxpayer_ids.update(file_ids)
+                    
+                    progress.advance(task)
+                    
+                except Exception as e:
+                    logger.warning(f"Could not load {filepath.name}: {e}")
+                    progress.advance(task)
+                    continue
+        
+        taxpayer_ids = list(all_taxpayer_ids)
+        
+        console.print(f"\n✓ Loaded {total_records:,} total records from {len(files)} files", style="green")
+        console.print(f"✓ Found {len(taxpayer_ids):,} unique taxpayer IDs", style="green bold")
+        
+        if not taxpayer_ids:
+            console.print("⚠ No taxpayer IDs found in any files", style="yellow")
+            return
+        
+        # Ask for processing limit (optional)
+        if len(taxpayer_ids) > 1000:
+            console.print(f"\n⚠ Large dataset: {len(taxpayer_ids):,} IDs", style="yellow")
+            limit = Prompt.ask(
+                "Limit processing? (0 for all)",
+                default="0"
+            )
+            limit = int(limit) if limit.isdigit() else 0
+            if limit > 0:
+                taxpayer_ids = taxpayer_ids[:limit]
+                console.print(f"Limited to first {limit:,} IDs", style="cyan")
+        
+        # Process all taxpayer IDs with combined source name
+        self.batch_process_taxpayer_ids(taxpayer_ids, source_name="all_socrata_combined")
     
     def process_socrata_manual(self):
         """Process Socrata file from manual path"""
@@ -247,7 +353,9 @@ class ComptrollerScraperCLI:
             console.print(f"✓ Found {len(taxpayer_ids):,} taxpayer IDs", style="green")
             
             if taxpayer_ids:
-                self.batch_process_taxpayer_ids(taxpayer_ids)
+                # Use filename as source for separate export files
+                source_name = filepath.stem
+                self.batch_process_taxpayer_ids(taxpayer_ids, source_name=source_name)
             else:
                 console.print("⚠ No taxpayer IDs found", style="yellow")
                 
@@ -255,8 +363,14 @@ class ComptrollerScraperCLI:
             console.print(f"Error: {e}", style="red bold")
             logger.error(f"Processing error: {e}")
     
-    def batch_process_taxpayer_ids(self, taxpayer_ids: list):
-        """Batch process taxpayer IDs using scraper wrapper"""
+    def batch_process_taxpayer_ids(self, taxpayer_ids: list, source_name: str = None):
+        """
+        Batch process taxpayer IDs using scraper wrapper
+        
+        Args:
+            taxpayer_ids: List of taxpayer IDs to process
+            source_name: Source dataset name for separate export files (optional)
+        """
         console.print(f"\n[bold]Processing {len(taxpayer_ids):,} taxpayers...[/bold]")
         
         if self.scraper.gpu.use_gpu:
@@ -283,15 +397,16 @@ class ComptrollerScraperCLI:
                 # Sync processing
                 results = self.scraper.scrape_taxpayer_details(taxpayer_ids)
             
-            # Store results
+            # Store results with source name for later export
             self.last_data = results
+            self._last_source_name = source_name  # Track source for export
             
             # Show summary
             self.show_processing_summary(results)
             
-            # Export
+            # Export with source-specific filename
             if Confirm.ask("\nExport results?", default=True):
-                self.export_comptroller_data(results)
+                self.export_comptroller_data(results, source_name=source_name)
                 
         except Exception as e:
             console.print(f"Error: {e}", style="red bold")
@@ -468,15 +583,27 @@ class ComptrollerScraperCLI:
         else:
             console.print("\n⚠ No FTAS records found", style="yellow")
     
-    def export_comptroller_data(self, data: list):
+    def export_comptroller_data(self, data: list, source_name: str = None):
         """
         Export comptroller data (APPENDS to existing files)
-        Uses fixed filename - new records are appended to existing file.
+        Uses source-specific filename if source_name provided.
+        
+        Args:
+            data: List of comptroller records
+            source_name: Source Socrata dataset name (optional)
+                         If provided, exports to comptroller_{source_name}.json
+                         If None, exports to comptroller_data.json (generic)
         """
-        # Use fixed filename (no timestamp) so we can append
-        base_filename = "comptroller_data"
+        # Create source-specific filename or use generic
+        if source_name:
+            # Clean the source name and prefix with "comptroller_"
+            clean_source = source_name.lower().replace(' ', '_').replace('-', '_')
+            base_filename = f"comptroller_{clean_source}"
+        else:
+            base_filename = "comptroller_data"
         
         console.print(f"\n[bold]Exporting {len(data):,} records (append mode)...[/bold]")
+        console.print(f"Target: {base_filename}.*", style="cyan")
         
         try:
             # Flatten data for export
@@ -782,12 +909,15 @@ class ComptrollerScraperCLI:
                     self.process_socrata_manual()
                     
                 elif choice == "3":
-                    console.print("\nBatch from file - Coming soon!", style="yellow")
+                    self.process_all_socrata_files()
                     
                 elif choice == "4":
-                    self.single_taxpayer_lookup()
+                    console.print("\nBatch from file - Coming soon!", style="yellow")
                     
                 elif choice == "5":
+                    self.single_taxpayer_lookup()
+                    
+                elif choice == "6":
                     taxpayer_id = Prompt.ask("\nEnter Taxpayer ID")
                     details = self.scraper.client.get_franchise_tax_details(taxpayer_id)
                     if details:
@@ -797,7 +927,7 @@ class ComptrollerScraperCLI:
                     else:
                         console.print("No details found", style="yellow")
                     
-                elif choice == "6":
+                elif choice == "7":
                     taxpayer_id = Prompt.ask("\nEnter Taxpayer ID")
                     ftas = self.scraper.client.get_franchise_tax_list(taxpayer_id=taxpayer_id)
                     if ftas:
@@ -809,13 +939,13 @@ class ComptrollerScraperCLI:
                     else:
                         console.print("No FTAS records found", style="yellow")
                     
-                elif choice == "7":
+                elif choice == "8":
                     self.enrich_socrata_data()
                     
-                elif choice == "8":
+                elif choice == "9":
                     self.scrape_with_validation()
                     
-                elif choice == "9":
+                elif choice == "10":
                     files = self.detect_socrata_files()
                     if files:
                         selected_file = self.show_file_selector(files)
@@ -828,16 +958,16 @@ class ComptrollerScraperCLI:
                         if Confirm.ask("\nExport?", default=True):
                             self.export_comptroller_data(results)
                     
-                elif choice == "10":
+                elif choice == "11":
                     self.search_by_business_name()
                     
-                elif choice == "11":
+                elif choice == "12":
                     if self.last_data:
                         self.export_comptroller_data(self.last_data)
                     else:
                         console.print("\nNo data to export", style="yellow")
                     
-                elif choice == "12":
+                elif choice == "13":
                     stats = self.scraper.client.rate_limiter.get_stats()
                     table = Table(title="Rate Limiter Stats")
                     table.add_column("Metric", style="cyan")
@@ -847,26 +977,26 @@ class ComptrollerScraperCLI:
                     console.print("\n")
                     console.print(table)
                     
-                elif choice == "13":
+                elif choice == "14":
                     self.show_scraper_stats()
                     
-                elif choice == "14":
+                elif choice == "15":
                     self.show_cache_stats()
                     
-                elif choice == "15":
+                elif choice == "16":
                     self.scraper.clear_cache()
                     console.print("\n✓ Cache cleared", style="green")
                     
-                elif choice == "16":
+                elif choice == "17":
                     self.validate_and_clean_data()
                     
-                elif choice == "17":
+                elif choice == "18":
                     self.view_data_quality_report()
                     
-                elif choice == "18":
+                elif choice == "19":
                     self.resume_session()
                     
-                elif choice == "19":
+                elif choice == "20":
                     self.manage_saved_progress()
                     
                 else:
