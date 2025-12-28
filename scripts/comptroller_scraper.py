@@ -154,8 +154,8 @@ class ComptrollerScraperCLI:
         
         return all_files
     
-    def show_file_selector(self, files: list) -> Path:
-        """Show file selection menu"""
+    def show_file_selector(self, files: list):
+        """Show file selection menu - returns Path or list of Paths"""
         console.print("\n[bold]Available Socrata Export Files:[/bold]")
         
         table = Table()
@@ -163,6 +163,9 @@ class ComptrollerScraperCLI:
         table.add_column("Filename", style="white")
         table.add_column("Size", style="yellow")
         table.add_column("Modified", style="green")
+        
+        # Add "All Files" option
+        table.add_row("0", "📁 ALL FILES", "-", "-")
         
         for i, file in enumerate(files[:20], 1):  # Show max 20 files
             size_mb = file.stat().st_size / (1024 * 1024)
@@ -178,11 +181,16 @@ class ComptrollerScraperCLI:
         console.print(table)
         
         choice = Prompt.ask(
-            "\nSelect file number",
-            choices=[str(i) for i in range(1, min(len(files), 20) + 1)]
+            "\nSelect file number (0 for all)",
+            choices=["0"] + [str(i) for i in range(1, min(len(files), 20) + 1)],
+            default="0"
         )
         
-        return files[int(choice) - 1]
+        if choice == "0":
+            console.print(f"  ✓ Selected ALL {len(files)} files", style="green")
+            return files  # Return list of all files
+        else:
+            return files[int(choice) - 1]  # Return single file
     
     def extract_taxpayer_ids(self, data: list) -> list:
         """
@@ -217,28 +225,54 @@ class ComptrollerScraperCLI:
             console.print(f"Expected location: {SOCRATA_EXPORT_DIR}", style="yellow")
             return
         
-        # Select file
-        selected_file = self.show_file_selector(files)
+        # Select file(s)
+        selection = self.show_file_selector(files)
         
-        # Load data
-        console.print(f"\n[bold]Loading {selected_file.name}...[/bold]")
-        try:
-            data = self.exporter.auto_load(selected_file)
-            console.print(f"✓ Loaded {len(data):,} records", style="green")
+        # Handle single file or list of files
+        if isinstance(selection, list):
+            # Process ALL files
+            console.print(f"\n[bold]Processing {len(selection)} files...[/bold]")
+            all_taxpayer_ids = set()
             
-            # Extract taxpayer IDs
-            taxpayer_ids = self.extract_taxpayer_ids(data)
-            console.print(f"✓ Found {len(taxpayer_ids):,} taxpayer IDs", style="green")
+            for file in selection:
+                console.print(f"  Loading {file.name}...")
+                try:
+                    data = self.exporter.auto_load(file)
+                    ids = self.extract_taxpayer_ids(data)
+                    all_taxpayer_ids.update(ids)
+                    console.print(f"    ✓ {len(ids):,} IDs", style="green")
+                except Exception as e:
+                    console.print(f"    ⚠ Error: {e}", style="yellow")
             
-            if not taxpayer_ids:
+            console.print(f"\n✓ Total unique IDs: {len(all_taxpayer_ids):,}", style="green bold")
+            
+            if not all_taxpayer_ids:
                 console.print("⚠ No taxpayer IDs found in data", style="yellow")
                 return
             
-            # Extract source name from filename for separate export files
-            source_name = selected_file.stem  # e.g., "franchise_tax_permit_holders"
-            
-            # Process taxpayer IDs with source tracking
-            self.batch_process_taxpayer_ids(taxpayer_ids, source_name=source_name)
+            # Process all IDs
+            self.batch_process_taxpayer_ids(list(all_taxpayer_ids), source_name="all_socrata_files")
+        else:
+            # Process single file
+            selected_file = selection
+            console.print(f"\n[bold]Loading {selected_file.name}...[/bold]")
+            try:
+                data = self.exporter.auto_load(selected_file)
+                console.print(f"✓ Loaded {len(data):,} records", style="green")
+                
+                # Extract taxpayer IDs
+                taxpayer_ids = self.extract_taxpayer_ids(data)
+                console.print(f"✓ Found {len(taxpayer_ids):,} taxpayer IDs", style="green")
+                
+                if not taxpayer_ids:
+                    console.print("⚠ No taxpayer IDs found in data", style="yellow")
+                    return
+                
+                # Extract source name from filename for separate export files
+                source_name = selected_file.stem  # e.g., "franchise_tax_permit_holders"
+                
+                # Process taxpayer IDs with source tracking
+                self.batch_process_taxpayer_ids(taxpayer_ids, source_name=source_name)
             
         except Exception as e:
             console.print(f"Error: {e}", style="red bold")
