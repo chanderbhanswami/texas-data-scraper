@@ -127,36 +127,26 @@ class ComptrollerScraperCLI:
         choice = Prompt.ask("\nSelect an option", default="0")
         return choice
     
-    def detect_socrata_files(self, json_only: bool = False) -> list:
+    def detect_socrata_files(self, json_only: bool = True) -> list:
         """
-        Auto-detect Socrata export files
+        Auto-detect Socrata export files (JSON only to avoid duplicates)
         
         Args:
-            json_only: If True, only return JSON files (for bulk processing to avoid duplication)
-                       If False, return all files (for single file selection)
+            json_only: If True, only return JSON files (default)
         """
         socrata_dir = Path(SOCRATA_EXPORT_DIR)
         
-        # Find JSON files (preferred - faster to load, smaller)
+        # Only get JSON files (CSV/Excel contain same data, would cause duplicates)
         json_files = [f for f in socrata_dir.glob("*.json") if '.checksum' not in f.name]
         
-        if json_only:
-            # For bulk processing, ONLY use JSON to avoid duplication
-            # (CSV and Excel contain the same data)
-            all_files = json_files
-        else:
-            # For single file selection, show all formats
-            csv_files = list(socrata_dir.glob("*.csv"))
-            all_files = json_files + csv_files
-        
         # Sort by modification time (newest first)
-        all_files.sort(key=lambda x: x.stat().st_mtime, reverse=True)
+        json_files.sort(key=lambda x: x.stat().st_mtime, reverse=True)
         
-        return all_files
+        return json_files
     
     def show_file_selector(self, files: list):
         """Show file selection menu - returns Path or list of Paths"""
-        console.print("\n[bold]Available Socrata Export Files:[/bold]")
+        console.print("\n[bold]Available Socrata Export JSON Files:[/bold]")
         
         table = Table()
         table.add_column("#", style="cyan", width=4)
@@ -187,8 +177,10 @@ class ComptrollerScraperCLI:
         )
         
         if choice == "0":
-            console.print(f"  ✓ Selected ALL {len(files)} files", style="green")
-            return files  # Return list of all files
+            # Only return JSON files to avoid duplicates (CSV/Excel contain same data)
+            json_files = [f for f in files if f.suffix == '.json']
+            console.print(f"  ✓ Selected {len(json_files)} JSON files (skipping CSV to avoid duplicates)", style="green")
+            return json_files  # Return list of JSON files only
         else:
             return files[int(choice) - 1]  # Return single file
     
