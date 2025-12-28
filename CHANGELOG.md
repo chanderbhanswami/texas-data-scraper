@@ -5,6 +5,54 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.0] - 2025-12-28
+
+### Added
+- **Process ALL Socrata Files** (Comptroller Scraper)
+  - New menu option 3: "📁 Process ALL Socrata Files (combined)"
+  - Auto-detects all Socrata JSON files
+  - Extracts unique taxpayer IDs from all files
+  - Processes all at once through Comptroller API
+  - Uses JSON-only to avoid CSV/Excel duplication
+
+- **Separate Comptroller Files Per Dataset**
+  - Exports now use source-specific filenames
+  - `comptroller_franchise_tax_permit_holders.*`
+  - `comptroller_sales_tax_permit_holders.*`
+  - Clear traceability of which Comptroller data came from which Socrata source
+
+- **Master Combine All** (Data Combiner - Option 6)
+  - 🌟 Full pipeline automation
+  - Step 1: Merge ALL Socrata JSON files → Master Socrata dataset
+  - Step 2: Merge ALL Comptroller JSON files → Master Comptroller dataset
+  - Step 3: Combine by taxpayer ID → Final enriched dataset
+  - Step 4: Export to `master_combined.*` (JSON, CSV, Excel)
+
+- **9 Manual Combine Options** (Data Combiner - Option 12)
+  - Submenu with granular control over file merging
+  - Options 1-3: Combine all Socrata JSON/CSV/Excel
+  - Options 4-6: Combine all Comptroller JSON/CSV/Excel
+  - Options 7-9: Cross-source combine by format
+  - Distinct output filenames: `merged_socrata_json.*`, `combined_all_csv.*`, etc.
+
+### Changed
+- Data Combiner menu renumbered (GPU → 7, Data Quality → 8-9, Stats → 10-11)
+- Comptroller menu renumbered to accommodate "Process ALL" option
+- `detect_socrata_files()` now accepts `json_only` parameter to prevent duplication
+
+### Technical Details
+- New methods in `scripts/comptroller_scraper.py`:
+  - `process_all_socrata_files()` - Bulk processing
+  - `detect_socrata_files(json_only=True)` - Smart format detection
+- New methods in `scripts/data_combiner.py`:
+  - `master_combine_all()` - Full pipeline
+  - `_merge_all_json_files()` - JSON-specific merging
+  - `_merge_all_files_by_format()` - Any format merging
+  - `combine_single_source()` - Single source merge (options 1-6)
+  - `combine_cross_source()` - Cross-source merge (options 7-9)
+  - `show_manual_combine_menu()` - Submenu display
+  - `handle_manual_combine()` - Submenu handler
+
 ## [1.2.0] - 2025-12-27
 
 ### Added

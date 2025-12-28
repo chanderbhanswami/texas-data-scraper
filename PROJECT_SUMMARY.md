@@ -93,6 +93,13 @@ A **production-ready, fully-featured** data scraping toolkit with:
 - ✅ Append-to-existing exports - single consolidated file per dataset
 - ✅ Cross-dataset deduplication - works across Socrata datasets
 
+### ✅ Bulk Operations & Master Combine (v1.3.0)
+- ✅ Process ALL Socrata files - bulk process all datasets through Comptroller
+- ✅ Separate Comptroller files per dataset - source-specific filenames
+- ✅ Master Combine All - full pipeline merge of all Socrata + Comptroller data
+- ✅ 9 Manual Combine Options - granular control over file merging
+- ✅ Smart format detection - JSON-only for bulk to avoid duplication
+
 ## 📂 Complete File Structure
 
 ```

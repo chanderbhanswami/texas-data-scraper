@@ -209,6 +209,13 @@
 - [x] `TAXPAYER_ID_FIELDS` constant for ID variations
 - [x] `FIELD_SYNONYMS` for field name mapping
 
+### ✅ Bulk Operations & Master Combine (v1.3.0)
+- [x] Process ALL Socrata files - bulk process all datasets through Comptroller
+- [x] Separate Comptroller files per dataset - source-specific filenames
+- [x] Master Combine All - full pipeline merge (Data Combiner Option 6)
+- [x] 9 Manual Combine Options - granular file merging (Data Combiner Option 12)
+- [x] Smart format detection - JSON-only for bulk to avoid duplication
+
 ---
 
 ## 🔍 VERIFICATION COMMANDS
@@ -369,7 +376,7 @@ This toolkit is ready for:
 
 **Status**: COMPLETE ✅
 **Date**: December 2025
-**Version**: 1.2.0
+**Version**: 1.3.0
 
 ---
 

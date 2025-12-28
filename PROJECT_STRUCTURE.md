@@ -164,7 +164,21 @@ texas-data-scraper/
   - Single consolidated file per dataset
   - No more multiple timestamped files
 
-### 10. Future Pipeline (Planned)
+### 10. Bulk Operations & Master Combine (v1.3.0)
+- **Process ALL Socrata Files** (Comptroller Scraper)
+  - Menu option 3: Bulk process all datasets at once
+  - Uses JSON-only to avoid CSV/Excel duplication
+- **Separate Comptroller Files Per Dataset**
+  - Source-specific filenames: `comptroller_franchise_tax.*`
+  - Clear traceability per source dataset
+- **Master Combine All** (Data Combiner Option 6)
+  - Full pipeline: merge all Socrata → merge all Comptroller → combine by taxpayer ID
+  - Output: `master_combined.*` (JSON, CSV, Excel)
+- **9 Manual Combine Options** (Data Combiner Option 12)
+  - Granular control: Socrata only, Comptroller only, or cross-source
+  - Distinct filenames: `merged_socrata_json.*`, `combined_all_csv.*`, etc.
+
+### 11. Future Pipeline (Planned)
 - **Phase 1** (Current): Socrata + Comptroller data scraping ✅
 - **Phase 2** (Planned): Google Places API integration for business details
 - **Phase 3** (Planned): Clearbit API for company enrichment (emails, contacts, social media)

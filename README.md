@@ -45,6 +45,10 @@ A comprehensive, production-ready toolkit for scraping and processing data from 
 - **Smart Field Detection**: Case-insensitive matching with 20+ field variations (v1.2.0)
 - **Global Auto-Deduplication**: Automatically skips already-scraped records (v1.2.0)
 - **Append-to-Existing Exports**: Single consolidated file per dataset (v1.2.0)
+- **Process ALL Socrata Files**: Bulk process all datasets through Comptroller (v1.3.0)
+- **Separate Comptroller Files**: Source-specific filenames per dataset (v1.3.0)
+- **Master Combine All**: Full pipeline merge of all Socrata + Comptroller data (v1.3.0)
+- **9 Manual Combine Options**: Granular control over file merging (v1.3.0)
 
 ### Data Sources
 - Franchise Tax Permit Holders

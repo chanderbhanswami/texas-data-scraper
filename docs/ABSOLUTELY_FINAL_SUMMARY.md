@@ -260,6 +260,13 @@
 - [x] `TAXPAYER_ID_FIELDS` - comprehensive field name variations
 - [x] `FIELD_SYNONYMS` - maps field variations to canonical names
 
+### Bulk Operations & Master Combine (v1.3.0) ✅
+- [x] Process ALL Socrata files - bulk process all datasets through Comptroller
+- [x] Separate Comptroller files per dataset - source-specific filenames
+- [x] Master Combine All - full pipeline merge of all Socrata + Comptroller data
+- [x] 9 Manual Combine Options - granular control over file merging
+- [x] Smart format detection - JSON-only for bulk to avoid duplication
+
 ---
 
 ## 🎓 **QUICK START COMMANDS**
@@ -381,8 +388,8 @@ python scripts/api_tester.py
 ║  Documentation: Complete                                 ║
 ║                                                          ║
 ║  Ready For: Production Deployment                        ║
-║  Version: 1.2.0                                          ║
-║  Date: December 27, 2025                                 ║
+║  Version: 1.3.0                                          ║
+║  Date: December 28, 2025                                 ║
 ║                                                          ║
 ╚══════════════════════════════════════════════════════════╝
 ```
