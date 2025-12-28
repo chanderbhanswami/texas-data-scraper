@@ -273,10 +273,10 @@ class ComptrollerScraperCLI:
                 
                 # Process taxpayer IDs with source tracking
                 self.batch_process_taxpayer_ids(taxpayer_ids, source_name=source_name)
-            
-        except Exception as e:
-            console.print(f"Error: {e}", style="red bold")
-            logger.error(f"Processing error: {e}")
+                
+            except Exception as e:
+                console.print(f"Error: {e}", style="red bold")
+                logger.error(f"Processing error: {e}")
     
     def process_all_socrata_files(self):
         """Process ALL Socrata export files at once (combined)"""
