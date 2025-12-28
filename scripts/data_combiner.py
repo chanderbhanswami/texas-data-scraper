@@ -78,15 +78,18 @@ class DataCombinerCLI:
         table.add_row("4", "Auto-detect and combine latest exports")
         table.add_row("5", "Manual file path combination")
         table.add_row("", "")
-        # New GPU-accelerated options
-        table.add_row("6", "🚀 GPU-Accelerated Combine (faster for large datasets)")
+        # Master combine option
+        table.add_row("6", "🌟 MASTER COMBINE ALL (merge all datasets)")
+        table.add_row("", "")
+        # GPU-accelerated options
+        table.add_row("7", "🚀 GPU-Accelerated Combine (faster for large datasets)")
         table.add_row("", "")
         # Data quality options
-        table.add_row("7", "📊 View Data Quality Report")
-        table.add_row("8", "🧹 Clean & Validate Combined Data")
+        table.add_row("8", "📊 View Data Quality Report")
+        table.add_row("9", "🧹 Clean & Validate Combined Data")
         table.add_row("", "")
-        table.add_row("9", "View combination statistics")
-        table.add_row("10", "View GPU/Memory Stats")
+        table.add_row("10", "View combination statistics")
+        table.add_row("11", "View GPU/Memory Stats")
         table.add_row("", "")
         table.add_row("0", "Exit")
         
@@ -235,6 +238,149 @@ class DataCombinerCLI:
         file_format = format_map.get(socrata_file.suffix.lower(), 'json')
         
         self._load_and_combine(socrata_file, comptroller_file, file_format)
+    
+    def master_combine_all(self):
+        """
+        MASTER COMBINE ALL - Full Pipeline
+        
+        Step 1: Merge ALL Socrata JSON/CSV/Excel files → Master Socrata data
+        Step 2: Merge ALL Comptroller JSON/CSV/Excel files → Master Comptroller data
+        Step 3: Combine Master Socrata + Master Comptroller by taxpayer ID
+        Step 4: Export combined data in all formats
+        """
+        console.print("\n[bold]🌟 MASTER COMBINE ALL[/bold]")
+        console.print("This will merge ALL datasets and create master combined exports.\n")
+        
+        console.print("[bold]Pipeline:[/bold]")
+        console.print("  1. Merge all Socrata files (JSON) → Master Socrata dataset")
+        console.print("  2. Merge all Comptroller files (JSON) → Master Comptroller dataset")
+        console.print("  3. Combine by taxpayer ID → Final enriched dataset")
+        console.print("  4. Export to JSON, CSV, and Excel\n")
+        
+        if not Confirm.ask("Proceed with Master Combine?", default=True):
+            return
+        
+        # Step 1: Merge all Socrata JSON files
+        console.print("\n[cyan]Step 1/4: Merging all Socrata files...[/cyan]")
+        socrata_data = self._merge_all_json_files(Path(SOCRATA_EXPORT_DIR), "Socrata")
+        
+        if not socrata_data:
+            console.print("⚠ No Socrata data found", style="yellow")
+            return
+        
+        console.print(f"✓ Master Socrata dataset: {len(socrata_data):,} records", style="green")
+        
+        # Step 2: Merge all Comptroller JSON files
+        console.print("\n[cyan]Step 2/4: Merging all Comptroller files...[/cyan]")
+        comptroller_data = self._merge_all_json_files(Path(COMPTROLLER_EXPORT_DIR), "Comptroller")
+        
+        if not comptroller_data:
+            console.print("⚠ No Comptroller data found", style="yellow")
+            return
+        
+        console.print(f"✓ Master Comptroller dataset: {len(comptroller_data):,} records", style="green")
+        
+        # Step 3: Combine by taxpayer ID
+        console.print("\n[cyan]Step 3/4: Combining datasets by taxpayer ID...[/cyan]")
+        
+        try:
+            combined_data = self.combiner.combine_by_taxpayer_id(
+                socrata_data,
+                comptroller_data
+            )
+            
+            console.print(f"✓ Combined dataset: {len(combined_data):,} unique records", style="green bold")
+            
+        except Exception as e:
+            console.print(f"Error combining: {e}", style="red")
+            logger.error(f"Master combine error: {e}")
+            return
+        
+        # Step 4: Export to all formats
+        console.print("\n[cyan]Step 4/4: Exporting master combined data...[/cyan]")
+        
+        try:
+            # Export with fixed "master_combined" filename (append mode)
+            paths = self.exporter.append_or_create_all_formats(combined_data, "master_combined")
+            
+            for fmt, path in paths.items():
+                console.print(f"✓ {fmt.upper()}: {path}", style="green")
+            
+            self.last_combined_data = combined_data
+            
+            console.print("\n" + "="*60, style="green")
+            console.print("🎉 MASTER COMBINE ALL COMPLETE!", style="green bold")
+            console.print("="*60, style="green")
+            
+            # Summary
+            console.print("\n[bold]Summary:[/bold]")
+            console.print(f"  • Socrata records merged: {len(socrata_data):,}")
+            console.print(f"  • Comptroller records merged: {len(comptroller_data):,}")
+            console.print(f"  • Final combined records: {len(combined_data):,}")
+            console.print(f"  • Output: exports/combined/master_combined.*")
+            
+        except Exception as e:
+            console.print(f"Export error: {e}", style="red")
+            logger.error(f"Master export error: {e}")
+    
+    def _merge_all_json_files(self, directory: Path, source_name: str) -> list:
+        """
+        Merge all JSON files from a directory into one dataset.
+        Uses deduplication by taxpayer ID to avoid duplicates.
+        
+        Args:
+            directory: Path to directory containing JSON files
+            source_name: Name for logging (e.g., "Socrata", "Comptroller")
+            
+        Returns:
+            List of merged records (deduplicated by taxpayer ID)
+        """
+        from src.utils.helpers import extract_taxpayer_id_from_record
+        
+        # Find all JSON files (exclude checksum files)
+        json_files = [f for f in directory.glob("*.json") if '.checksum' not in f.name]
+        
+        if not json_files:
+            console.print(f"  No JSON files found in {directory}", style="yellow")
+            return []
+        
+        console.print(f"  Found {len(json_files)} {source_name} JSON files")
+        
+        merged_data = []
+        seen_ids = set()
+        
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            console=console
+        ) as progress:
+            task = progress.add_task(f"Merging {source_name} files...", total=len(json_files))
+            
+            for filepath in json_files:
+                try:
+                    data = self.exporter.auto_load(filepath)
+                    
+                    for record in data:
+                        # Deduplicate by taxpayer ID
+                        taxpayer_id = extract_taxpayer_id_from_record(record)
+                        
+                        if taxpayer_id:
+                            if taxpayer_id not in seen_ids:
+                                seen_ids.add(taxpayer_id)
+                                merged_data.append(record)
+                        else:
+                            # No taxpayer ID - include anyway but may have duplicates
+                            merged_data.append(record)
+                    
+                    progress.advance(task)
+                    
+                except Exception as e:
+                    logger.warning(f"Could not load {filepath.name}: {e}")
+                    progress.advance(task)
+                    continue
+        
+        console.print(f"  Merged {len(merged_data):,} unique records from {len(json_files)} files")
+        return merged_data
     
     def gpu_accelerated_combine(self):
         """GPU-accelerated combination for large datasets"""
@@ -563,22 +709,25 @@ class DataCombinerCLI:
                     self.manual_combine()
                     
                 elif choice == "6":
-                    self.gpu_accelerated_combine()
+                    self.master_combine_all()
                     
                 elif choice == "7":
-                    self.view_data_quality_report()
+                    self.gpu_accelerated_combine()
                     
                 elif choice == "8":
-                    self.clean_and_validate_data()
+                    self.view_data_quality_report()
                     
                 elif choice == "9":
+                    self.clean_and_validate_data()
+                    
+                elif choice == "10":
                     if self.last_combined_data:
                         stats = self.combiner.get_combination_stats(self.last_combined_data)
                         self.display_stats(stats)
                     else:
                         console.print("\nLoad combined file first", style="yellow")
                     
-                elif choice == "10":
+                elif choice == "11":
                     self.show_gpu_stats()
                     
                 else:
