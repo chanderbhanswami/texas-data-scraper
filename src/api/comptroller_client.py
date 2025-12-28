@@ -36,7 +36,8 @@ class ComptrollerClient:
         }
         
         if self.api_key:
-            headers['Authorization'] = f'Bearer {self.api_key}'
+            # Texas Comptroller API uses x-api-key header
+            headers['x-api-key'] = self.api_key
         
         return headers
     
@@ -233,7 +234,8 @@ class AsyncComptrollerClient:
         }
         
         if self.api_key:
-            headers['Authorization'] = f'Bearer {self.api_key}'
+            # Texas Comptroller API uses x-api-key header
+            headers['x-api-key'] = self.api_key
         
         return headers
     
