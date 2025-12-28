@@ -188,34 +188,36 @@ class SocrataScraperCLI:
         table.add_row("4", "Sales Tax Permit Holders (custom limit)")
         table.add_row("5", "Mixed Beverage Tax Permit Holders (full dataset)")
         table.add_row("6", "Mixed Beverage Tax Permit Holders (custom limit)")
+        table.add_row("7", "Tax Registrations (full dataset)")
+        table.add_row("8", "Tax Registrations (custom limit)")
         table.add_row("", "")
         
         # Search options
-        table.add_row("7", "Search by Business Name")
-        table.add_row("8", "Search by Legal Name")
-        table.add_row("9", "Search by DBA/Alternative Names")
-        table.add_row("10", "Search by City")
-        table.add_row("11", "Search by ZIP Code")
-        table.add_row("12", "Search by Registered Agent")
-        table.add_row("13", "Search by Officer Name")
-        table.add_row("14", "Custom SoQL Query")
+        table.add_row("9", "Search by Business Name")
+        table.add_row("10", "Search by Legal Name")
+        table.add_row("11", "Search by DBA/Alternative Names")
+        table.add_row("12", "Search by City")
+        table.add_row("13", "Search by ZIP Code")
+        table.add_row("14", "Search by Registered Agent")
+        table.add_row("15", "Search by Officer Name")
+        table.add_row("16", "Custom SoQL Query")
         table.add_row("", "")
         
-        # Advanced options (NEW)
-        table.add_row("15", "🚀 Multi-Dataset Download (all at once)")
-        table.add_row("16", "📊 Incremental Scrape (new records only)")
-        table.add_row("17", "🔍 Search Across All Datasets")
+        # Advanced options
+        table.add_row("17", "🚀 Multi-Dataset Download (all at once)")
+        table.add_row("18", "📊 Incremental Scrape (new records only)")
+        table.add_row("19", "🔍 Search Across All Datasets")
         table.add_row("", "")
         
         # Utilities
-        table.add_row("18", "View Dataset Metadata")
-        table.add_row("19", "Export Last Downloaded Data")
-        table.add_row("20", "View Rate Limiter Stats")
-        table.add_row("21", "View GPU/Scraper Stats")
+        table.add_row("20", "View Dataset Metadata")
+        table.add_row("21", "Export Last Downloaded Data")
+        table.add_row("22", "View Rate Limiter Stats")
+        table.add_row("23", "View GPU/Scraper Stats")
         table.add_row("", "")
         # Data quality options
-        table.add_row("22", "📊 Validate & Clean Downloaded Data")
-        table.add_row("23", "🧹 View Data Quality Report")
+        table.add_row("24", "📊 Validate & Clean Downloaded Data")
+        table.add_row("25", "🧹 View Data Quality Report")
         table.add_row("", "")
         table.add_row("0", "Exit")
         
@@ -230,16 +232,42 @@ class SocrataScraperCLI:
         console.print("1. Franchise Tax")
         console.print("2. Sales Tax")
         console.print("3. Mixed Beverage Tax")
+        console.print("4. Tax Registrations")
+        console.print("5. All Datasets", style="cyan")
         
-        choice = Prompt.ask("Dataset", choices=["1", "2", "3"], default="1")
+        choice = Prompt.ask("Dataset", choices=["1", "2", "3", "4", "5"], default="1")
         
         datasets = {
             "1": socrata_config.FRANCHISE_TAX_DATASET,
             "2": socrata_config.SALES_TAX_DATASET,
-            "3": socrata_config.MIXED_BEVERAGE_DATASET
+            "3": socrata_config.MIXED_BEVERAGE_DATASET,
+            "4": socrata_config.TAX_REGISTRATIONS_DATASET
         }
         
-        return datasets[choice]
+        if choice == "5":
+            # Return list of all dataset IDs
+            return list(datasets.values())
+        else:
+            return datasets[choice]
+    
+    def get_limit_choice(self, prompt: str = "Download option", default_limit: int = 1000) -> int:
+        """
+        Ask user for limit choice - Complete or Custom
+        
+        Returns:
+            None for complete, or the custom limit number
+        """
+        console.print(f"\n{prompt}:")
+        console.print("  1. Complete (all records)")
+        console.print("  2. Custom limit")
+        
+        choice = Prompt.ask("Select", choices=["1", "2"], default="1")
+        
+        if choice == "1":
+            return None  # None means no limit = complete dataset
+        else:
+            limit = IntPrompt.ask("Enter number of records", default=default_limit)
+            return limit
     
     def download_full_dataset(self, dataset_name: str, dataset_id: str):
         """Download full dataset using scraper wrapper (auto-deduplicates)"""
@@ -307,9 +335,12 @@ class SocrataScraperCLI:
     
     def download_custom_limit(self, dataset_name: str, dataset_id: str):
         """Download dataset with custom limit (auto-deduplicates)"""
-        limit = IntPrompt.ask(f"\nEnter number of records to download", default=1000)
+        limit = self.get_limit_choice("Download option", default_limit=1000)
         
-        console.print(f"\n[bold]Downloading {dataset_name} ({limit:,} records)...[/bold]")
+        if limit is None:
+            console.print(f"\n[bold]Downloading {dataset_name} (complete dataset)...[/bold]")
+        else:
+            console.print(f"\n[bold]Downloading {dataset_name} ({limit:,} records)...[/bold]")
         
         # Show existing records status
         existing_ids = self.load_existing_taxpayer_ids()
@@ -354,7 +385,7 @@ class SocrataScraperCLI:
     def search_data(self, search_type: str, field: str):
         """Generic search function"""
         search_value = Prompt.ask(f"\nEnter {search_type}")
-        dataset_id = self.get_dataset_choice()
+        dataset_selection = self.get_dataset_choice()
         
         limit_choice = Prompt.ask("\nLimit results? (y/n)", choices=["y", "n"], default="n")
         limit = IntPrompt.ask("Number of results", default=100) if limit_choice == "y" else None
@@ -362,14 +393,27 @@ class SocrataScraperCLI:
         console.print(f"\n[bold]Searching for {search_type}: {search_value}...[/bold]")
         
         try:
-            # Use client through scraper
-            data = self.scraper.client.search(dataset_id, field, search_value, limit)
+            # Handle single dataset or all datasets
+            if isinstance(dataset_selection, list):
+                # Search all datasets
+                all_data = []
+                for dataset_id in dataset_selection:
+                    dataset_name = self._get_dataset_name(dataset_id)
+                    console.print(f"  Searching {dataset_name}...")
+                    data = self.scraper.client.search(dataset_id, field, search_value, limit)
+                    if data:
+                        all_data.extend(data)
+                        console.print(f"    ✓ Found {len(data)} records", style="green")
+                data = all_data
+            else:
+                # Search single dataset
+                data = self.scraper.client.search(dataset_selection, field, search_value, limit)
             
             if data:
                 self.last_data = data
                 self.last_source = f"{search_type}_search"
                 
-                console.print(f"\n✓ Found {len(data):,} records", style="green bold")
+                console.print(f"\n✓ Found {len(data):,} total records", style="green bold")
                 
                 # Show sample
                 if Confirm.ask("Show sample records?", default=True):
@@ -389,26 +433,40 @@ class SocrataScraperCLI:
         console.print("\n[bold]🚀 Multi-Dataset Download[/bold]")
         console.print("This will download multiple datasets concurrently\n")
         
-        # Select datasets
+        # Quick select all option
         console.print("Select datasets to download:")
-        download_franchise = Confirm.ask("  Franchise Tax?", default=True)
-        download_sales = Confirm.ask("  Sales Tax?", default=True)
-        download_mixed = Confirm.ask("  Mixed Beverage?", default=False)
+        download_all = Confirm.ask("  Download ALL datasets?", default=False)
         
-        dataset_ids = []
-        if download_franchise:
-            dataset_ids.append(socrata_config.FRANCHISE_TAX_DATASET)
-        if download_sales:
-            dataset_ids.append(socrata_config.SALES_TAX_DATASET)
-        if download_mixed:
-            dataset_ids.append(socrata_config.MIXED_BEVERAGE_DATASET)
+        if download_all:
+            dataset_ids = [
+                socrata_config.FRANCHISE_TAX_DATASET,
+                socrata_config.SALES_TAX_DATASET,
+                socrata_config.MIXED_BEVERAGE_DATASET,
+                socrata_config.TAX_REGISTRATIONS_DATASET
+            ]
+            console.print("  ✓ All 4 datasets selected", style="green")
+        else:
+            # Individual selection
+            download_franchise = Confirm.ask("  Franchise Tax?", default=True)
+            download_sales = Confirm.ask("  Sales Tax?", default=True)
+            download_mixed = Confirm.ask("  Mixed Beverage?", default=False)
+            download_tax_reg = Confirm.ask("  Tax Registrations?", default=False)
+            
+            dataset_ids = []
+            if download_franchise:
+                dataset_ids.append(socrata_config.FRANCHISE_TAX_DATASET)
+            if download_sales:
+                dataset_ids.append(socrata_config.SALES_TAX_DATASET)
+            if download_mixed:
+                dataset_ids.append(socrata_config.MIXED_BEVERAGE_DATASET)
+            if download_tax_reg:
+                dataset_ids.append(socrata_config.TAX_REGISTRATIONS_DATASET)
         
         if not dataset_ids:
             console.print("No datasets selected", style="yellow")
             return
         
-        limit = IntPrompt.ask("\nRecords per dataset (0 for all)", default=1000)
-        limit = None if limit == 0 else limit
+        limit = self.get_limit_choice("Records per dataset", default_limit=1000)
         
         console.print(f"\n[bold]Downloading {len(dataset_ids)} datasets...[/bold]")
         
@@ -467,24 +525,45 @@ class SocrataScraperCLI:
         console.print(f"✓ Found {len(existing_ids):,} existing IDs", style="green")
         
         # Get dataset
-        dataset_id = self.get_dataset_choice()
+        dataset_selection = self.get_dataset_choice()
         
         # Incremental scrape
         console.print("\n[bold]Scraping new records only...[/bold]")
         
         try:
-            new_data = self.scraper.incremental_scrape(
-                dataset_id,
-                existing_ids=existing_ids,
-                id_field='taxpayer_number',
-                batch_size=batch_config.BATCH_SIZE
-            )
+            # Handle single dataset or all datasets
+            if isinstance(dataset_selection, list):
+                # Scrape all datasets
+                all_new_data = []
+                for dataset_id in dataset_selection:
+                    ds_name = self._get_dataset_name(dataset_id)
+                    console.print(f"  Scraping {ds_name}...")
+                    new_data = self.scraper.incremental_scrape(
+                        dataset_id,
+                        existing_ids=existing_ids,
+                        id_field='taxpayer_number',
+                        batch_size=batch_config.BATCH_SIZE
+                    )
+                    if new_data:
+                        all_new_data.extend(new_data)
+                        console.print(f"    ✓ Found {len(new_data)} new records", style="green")
+                    else:
+                        console.print(f"    No new records", style="dim")
+                new_data = all_new_data
+            else:
+                # Scrape single dataset
+                new_data = self.scraper.incremental_scrape(
+                    dataset_selection,
+                    existing_ids=existing_ids,
+                    id_field='taxpayer_number',
+                    batch_size=batch_config.BATCH_SIZE
+                )
             
             if new_data:
                 self.last_data = new_data
                 self.last_source = "incremental"
                 
-                console.print(f"\n✓ Found {len(new_data):,} new records", style="green bold")
+                console.print(f"\n✓ Found {len(new_data):,} total new records", style="green bold")
                 
                 if Confirm.ask("Export new records?", default=True):
                     self.export_data(new_data, "incremental_new_records")
@@ -501,12 +580,13 @@ class SocrataScraperCLI:
         
         query = Prompt.ask("Enter search term")
         field = Prompt.ask("Search field", default="taxpayer_name")
-        limit = IntPrompt.ask("Results per dataset", default=50)
+        limit = self.get_limit_choice("Results per dataset", default_limit=50)
         
         dataset_ids = [
             socrata_config.FRANCHISE_TAX_DATASET,
             socrata_config.SALES_TAX_DATASET,
-            socrata_config.MIXED_BEVERAGE_DATASET
+            socrata_config.MIXED_BEVERAGE_DATASET,
+            socrata_config.TAX_REGISTRATIONS_DATASET
         ]
         
         console.print(f"\n[bold]Searching '{query}' across all datasets...[/bold]")
@@ -541,6 +621,99 @@ class SocrataScraperCLI:
                     
         except Exception as e:
             console.print(f"Error: {e}", style="red bold")
+    
+    def custom_soql_query(self):
+        """Custom SoQL Query - run any query on any dataset"""
+        console.print("\n[bold]📝 Custom SoQL Query[/bold]")
+        console.print("Run custom SoQL queries against any dataset\n")
+        
+        # Help text
+        console.print("[dim]SoQL Query Examples:[/dim]")
+        console.print("  [dim]WHERE: taxpayer_city = 'Austin'[/dim]")
+        console.print("  [dim]WHERE: taxpayer_name LIKE '%CORP%'[/dim]")
+        console.print("  [dim]WHERE: taxpayer_zip BETWEEN '75000' AND '76000'[/dim]")
+        console.print("  [dim]ORDER BY: taxpayer_name ASC[/dim]")
+        console.print("  [dim]SELECT: taxpayer_name, taxpayer_city, taxpayer_state[/dim]")
+        console.print("")
+        
+        # Select dataset
+        dataset_selection = self.get_dataset_choice()
+        
+        # Determine dataset names for display
+        if isinstance(dataset_selection, list):
+            console.print(f"\n[bold]Query: All Datasets[/bold]")
+        else:
+            dataset_name = self._get_dataset_name(dataset_selection)
+            console.print(f"\n[bold]Query: {dataset_name}[/bold]")
+        
+        # Get query parameters
+        where_clause = Prompt.ask("WHERE clause (leave blank for none)", default="")
+        select_clause = Prompt.ask("SELECT fields (leave blank for all)", default="")
+        order_clause = Prompt.ask("ORDER BY (leave blank for none)", default="")
+        limit = self.get_limit_choice("LIMIT option", default_limit=1000)
+        
+        # Build query params
+        params = {}
+        if where_clause:
+            params['$where'] = where_clause
+        if select_clause:
+            params['$select'] = select_clause
+        if order_clause:
+            params['$order'] = order_clause
+        
+        console.print(f"\n[bold]Executing query...[/bold]")
+        if params:
+            console.print(f"[dim]Parameters: {params}[/dim]")
+        
+        try:
+            # Handle single dataset or all datasets
+            if isinstance(dataset_selection, list):
+                # Query all datasets
+                all_data = []
+                for dataset_id in dataset_selection:
+                    ds_name = self._get_dataset_name(dataset_id)
+                    console.print(f"  Querying {ds_name}...")
+                    data = self.scraper.client.get(
+                        dataset_id,
+                        params=params,
+                        limit=limit,
+                        offset=0
+                    )
+                    if data:
+                        all_data.extend(data)
+                        console.print(f"    ✓ Retrieved {len(data)} records", style="green")
+                data = all_data
+                export_name = "soql_query_all_datasets"
+            else:
+                # Query single dataset
+                data = self.scraper.client.get(
+                    dataset_selection,
+                    params=params,
+                    limit=limit,
+                    offset=0
+                )
+                export_name = f"soql_query_{self._get_dataset_name(dataset_selection)}"
+            
+            if data:
+                console.print(f"\n✓ Retrieved {len(data):,} total records", style="green bold")
+                
+                # Show sample
+                self.show_sample_data(data)
+                
+                self.last_data = data
+                self.last_source = export_name
+                
+                if Confirm.ask("\nExport results?", default=True):
+                    self.export_data(data, export_name)
+            else:
+                console.print("No records matched your query", style="yellow")
+                
+        except Exception as e:
+            console.print(f"\n[red bold]Query Error:[/red bold] {e}")
+            console.print("\n[dim]Tips:[/dim]")
+            console.print("  [dim]- Check field names are correct for this dataset[/dim]")
+            console.print("  [dim]- Use single quotes for string values[/dim]")
+            console.print("  [dim]- Use LIKE '%value%' for partial matches[/dim]")
     
     def show_sample_data(self, data: list, sample_size: int = 5):
         """Show sample records"""
@@ -767,57 +940,63 @@ class SocrataScraperCLI:
                     self.download_custom_limit("mixed_beverage", socrata_config.MIXED_BEVERAGE_DATASET)
                     
                 elif choice == "7":
-                    self.search_data("Business Name", "taxpayer_name")
+                    self.download_full_dataset("tax_registrations", socrata_config.TAX_REGISTRATIONS_DATASET)
                     
                 elif choice == "8":
-                    self.search_data("Legal Name", "legal_name")
+                    self.download_custom_limit("tax_registrations", socrata_config.TAX_REGISTRATIONS_DATASET)
                     
                 elif choice == "9":
-                    self.search_data("DBA Name", "dba_name")
+                    self.search_data("Business Name", "taxpayer_name")
                     
                 elif choice == "10":
-                    self.search_data("City", "taxpayer_city")
+                    self.search_data("Legal Name", "legal_name")
                     
                 elif choice == "11":
-                    self.search_data("ZIP Code", "taxpayer_zip")
+                    self.search_data("DBA Name", "dba_name")
                     
                 elif choice == "12":
-                    self.search_data("Registered Agent", "agent_name")
+                    self.search_data("City", "taxpayer_city")
                     
                 elif choice == "13":
-                    self.search_data("Officer Name", "officer_name")
+                    self.search_data("ZIP Code", "taxpayer_zip")
                     
                 elif choice == "14":
-                    console.print("\nCustom SoQL Query - Coming soon!", style="yellow")
+                    self.search_data("Registered Agent", "agent_name")
                     
                 elif choice == "15":
-                    self.multi_dataset_download()
+                    self.search_data("Officer Name", "officer_name")
                     
                 elif choice == "16":
-                    self.incremental_scrape()
+                    self.custom_soql_query()
                     
                 elif choice == "17":
-                    self.search_across_datasets()
+                    self.multi_dataset_download()
                     
                 elif choice == "18":
-                    self.view_metadata()
+                    self.incremental_scrape()
                     
                 elif choice == "19":
+                    self.search_across_datasets()
+                    
+                elif choice == "20":
+                    self.view_metadata()
+                    
+                elif choice == "21":
                     if self.last_data:
                         self.export_data(self.last_data, self.last_source or "data")
                     else:
                         console.print("\nNo data available to export", style="yellow")
                     
-                elif choice == "20":
+                elif choice == "22":
                     self.show_rate_limiter_stats()
                     
-                elif choice == "21":
+                elif choice == "23":
                     self.show_scraper_stats()
                     
-                elif choice == "22":
+                elif choice == "24":
                     self.validate_and_clean_data()
                     
-                elif choice == "23":
+                elif choice == "25":
                     self.view_data_quality_report()
                     
                 else:
