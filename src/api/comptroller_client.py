@@ -240,35 +240,50 @@ class AsyncComptrollerClient:
         return headers
     
     async def get_franchise_tax_details(self, taxpayer_id: str) -> Optional[Dict]:
-        """Async get detailed franchise tax information"""
+        """Async get detailed franchise tax information with network retry"""
         url = f"{comptroller_config.FRANCHISE_TAX_ENDPOINT}/{taxpayer_id}"
         
-        await self.rate_limiter.wait_if_needed()
+        max_retries = rate_limit_config.MAX_RETRIES
+        base_delay = rate_limit_config.RETRY_DELAY
         
-        try:
-            async with aiohttp.ClientSession() as session:
-                async with session.get(
-                    url,
-                    headers=self._get_headers(),
-                    timeout=aiohttp.ClientTimeout(total=rate_limit_config.REQUEST_TIMEOUT),
-                    ssl=advanced_config.VERIFY_SSL
-                ) as response:
-                    await self.rate_limiter.record_request()
-                    
-                    if response.status == 404:
-                        return None
-                    
-                    response.raise_for_status()
-                    return await response.json()
-                    
-        except Exception as e:
-            logger.error(f"Error fetching details for {taxpayer_id}: {e}")
-            return None
+        for attempt in range(max_retries + 1):
+            await self.rate_limiter.wait_if_needed()
+            
+            try:
+                async with aiohttp.ClientSession() as session:
+                    async with session.get(
+                        url,
+                        headers=self._get_headers(),
+                        timeout=aiohttp.ClientTimeout(total=rate_limit_config.REQUEST_TIMEOUT),
+                        ssl=advanced_config.VERIFY_SSL
+                    ) as response:
+                        await self.rate_limiter.record_request()
+                        
+                        if response.status == 404:
+                            return None
+                        
+                        response.raise_for_status()
+                        return await response.json()
+                        
+            except (aiohttp.ClientConnectorError, aiohttp.ClientOSError, OSError) as e:
+                # Network errors - retry with backoff
+                if attempt < max_retries:
+                    delay = base_delay * (2 ** attempt)  # Exponential backoff
+                    logger.warning(f"Network error for {taxpayer_id}, retry {attempt + 1}/{max_retries} in {delay}s: {e}")
+                    await asyncio.sleep(delay)
+                else:
+                    logger.error(f"Error fetching details for {taxpayer_id} after {max_retries} retries: {e}")
+                    return None
+            except Exception as e:
+                logger.error(f"Error fetching details for {taxpayer_id}: {e}")
+                return None
+        
+        return None
     
     async def get_franchise_tax_list(self, taxpayer_id: Optional[str] = None,
                                      name: Optional[str] = None,
                                      file_number: Optional[str] = None) -> List[Dict]:
-        """Async get franchise tax account status records"""
+        """Async get franchise tax account status records with network retry"""
         url = comptroller_config.FRANCHISE_TAX_LIST_ENDPOINT
         
         params = {}
@@ -282,33 +297,48 @@ class AsyncComptrollerClient:
         if not params:
             return []
         
-        await self.rate_limiter.wait_if_needed()
+        max_retries = rate_limit_config.MAX_RETRIES
+        base_delay = rate_limit_config.RETRY_DELAY
         
-        try:
-            async with aiohttp.ClientSession() as session:
-                async with session.get(
-                    url,
-                    headers=self._get_headers(),
-                    params=params,
-                    timeout=aiohttp.ClientTimeout(total=rate_limit_config.REQUEST_TIMEOUT),
-                    ssl=advanced_config.VERIFY_SSL
-                ) as response:
-                    await self.rate_limiter.record_request()
-                    
-                    if response.status == 404:
-                        return []
-                    
-                    response.raise_for_status()
-                    data = await response.json()
-                    
-                    if isinstance(data, dict):
-                        data = [data]
-                    
-                    return data
-                    
-        except Exception as e:
-            logger.error(f"Error fetching FTAS records: {e}")
-            return []
+        for attempt in range(max_retries + 1):
+            await self.rate_limiter.wait_if_needed()
+            
+            try:
+                async with aiohttp.ClientSession() as session:
+                    async with session.get(
+                        url,
+                        headers=self._get_headers(),
+                        params=params,
+                        timeout=aiohttp.ClientTimeout(total=rate_limit_config.REQUEST_TIMEOUT),
+                        ssl=advanced_config.VERIFY_SSL
+                    ) as response:
+                        await self.rate_limiter.record_request()
+                        
+                        if response.status == 404:
+                            return []
+                        
+                        response.raise_for_status()
+                        data = await response.json()
+                        
+                        if isinstance(data, dict):
+                            data = [data]
+                        
+                        return data
+                        
+            except (aiohttp.ClientConnectorError, aiohttp.ClientOSError, OSError) as e:
+                # Network errors - retry with backoff
+                if attempt < max_retries:
+                    delay = base_delay * (2 ** attempt)  # Exponential backoff
+                    logger.warning(f"Network error for FTAS {taxpayer_id}, retry {attempt + 1}/{max_retries} in {delay}s: {e}")
+                    await asyncio.sleep(delay)
+                else:
+                    logger.error(f"Error fetching FTAS records after {max_retries} retries: {e}")
+                    return []
+            except Exception as e:
+                logger.error(f"Error fetching FTAS records: {e}")
+                return []
+        
+        return []
     
     async def get_complete_taxpayer_info(self, taxpayer_id: str) -> Dict[str, Any]:
         """Async get complete taxpayer information"""
