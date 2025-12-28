@@ -91,6 +91,9 @@ class DataCombinerCLI:
         table.add_row("10", "View combination statistics")
         table.add_row("11", "View GPU/Memory Stats")
         table.add_row("", "")
+        # Manual granular combine options
+        table.add_row("12", "📂 Manual Combine Options (9 granular options)")
+        table.add_row("", "")
         table.add_row("0", "Exit")
         
         console.print(table)
@@ -381,6 +384,225 @@ class DataCombinerCLI:
         
         console.print(f"  Merged {len(merged_data):,} unique records from {len(json_files)} files")
         return merged_data
+    
+    def show_manual_combine_menu(self):
+        """Show submenu for manual granular combine options"""
+        console.print("\n" + "="*60, style="bold")
+        console.print("📂 MANUAL COMBINE OPTIONS", style="bold cyan")
+        console.print("="*60, style="bold")
+        
+        table = Table(show_header=False, box=None)
+        table.add_column("Option", style="cyan", width=4)
+        table.add_column("Description", style="white")
+        
+        table.add_row("", "[bold]Socrata Only:[/bold]")
+        table.add_row("1", "Combine all Socrata JSON files")
+        table.add_row("2", "Combine all Socrata CSV files")
+        table.add_row("3", "Combine all Socrata Excel files")
+        table.add_row("", "")
+        table.add_row("", "[bold]Comptroller Only:[/bold]")
+        table.add_row("4", "Combine all Comptroller JSON files")
+        table.add_row("5", "Combine all Comptroller CSV files")
+        table.add_row("6", "Combine all Comptroller Excel files")
+        table.add_row("", "")
+        table.add_row("", "[bold]Cross-Source (by Taxpayer ID):[/bold]")
+        table.add_row("7", "Combine all JSON (Socrata + Comptroller)")
+        table.add_row("8", "Combine all CSV (Socrata + Comptroller)")
+        table.add_row("9", "Combine all Excel (Socrata + Comptroller)")
+        table.add_row("", "")
+        table.add_row("0", "Back to Main Menu")
+        
+        console.print(table)
+        
+        choice = Prompt.ask("\nSelect an option", default="0")
+        return choice
+    
+    def handle_manual_combine(self):
+        """Handle manual combine submenu"""
+        while True:
+            choice = self.show_manual_combine_menu()
+            
+            if choice == "0":
+                break
+            elif choice == "1":
+                self.combine_single_source("socrata", "json")
+            elif choice == "2":
+                self.combine_single_source("socrata", "csv")
+            elif choice == "3":
+                self.combine_single_source("socrata", "excel")
+            elif choice == "4":
+                self.combine_single_source("comptroller", "json")
+            elif choice == "5":
+                self.combine_single_source("comptroller", "csv")
+            elif choice == "6":
+                self.combine_single_source("comptroller", "excel")
+            elif choice == "7":
+                self.combine_cross_source("json")
+            elif choice == "8":
+                self.combine_cross_source("csv")
+            elif choice == "9":
+                self.combine_cross_source("excel")
+            else:
+                console.print("Invalid option", style="red")
+    
+    def _merge_all_files_by_format(self, directory: Path, file_format: str, source_name: str) -> list:
+        """
+        Merge all files of a specific format from a directory.
+        
+        Args:
+            directory: Path to directory
+            file_format: 'json', 'csv', or 'excel'
+            source_name: Name for logging
+            
+        Returns:
+            List of merged records (deduplicated by taxpayer ID)
+        """
+        from src.utils.helpers import extract_taxpayer_id_from_record
+        
+        # Get file pattern
+        pattern_map = {
+            'json': '*.json',
+            'csv': '*.csv',
+            'excel': '*.xlsx'
+        }
+        pattern = pattern_map.get(file_format, '*.json')
+        
+        # Find files (exclude checksum files)
+        files = [f for f in directory.glob(pattern) if '.checksum' not in f.name]
+        
+        if not files:
+            console.print(f"  No {file_format.upper()} files found in {directory}", style="yellow")
+            return []
+        
+        console.print(f"  Found {len(files)} {source_name} {file_format.upper()} files")
+        
+        merged_data = []
+        seen_ids = set()
+        
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            console=console
+        ) as progress:
+            task = progress.add_task(f"Merging {source_name} {file_format.upper()}...", total=len(files))
+            
+            for filepath in files:
+                try:
+                    data = self.exporter.auto_load(filepath)
+                    
+                    for record in data:
+                        taxpayer_id = extract_taxpayer_id_from_record(record)
+                        
+                        if taxpayer_id:
+                            if taxpayer_id not in seen_ids:
+                                seen_ids.add(taxpayer_id)
+                                merged_data.append(record)
+                        else:
+                            merged_data.append(record)
+                    
+                    progress.advance(task)
+                    
+                except Exception as e:
+                    logger.warning(f"Could not load {filepath.name}: {e}")
+                    progress.advance(task)
+                    continue
+        
+        console.print(f"  Merged {len(merged_data):,} unique records")
+        return merged_data
+    
+    def combine_single_source(self, source: str, file_format: str):
+        """
+        Combine all files of one format from one source.
+        
+        Args:
+            source: 'socrata' or 'comptroller'
+            file_format: 'json', 'csv', or 'excel'
+        """
+        console.print(f"\n[bold]Combining all {source.title()} {file_format.upper()} files...[/bold]\n")
+        
+        # Get directory
+        directory = Path(SOCRATA_EXPORT_DIR) if source == "socrata" else Path(COMPTROLLER_EXPORT_DIR)
+        
+        # Merge all files
+        merged_data = self._merge_all_files_by_format(directory, file_format, source.title())
+        
+        if not merged_data:
+            console.print("⚠ No data to combine", style="yellow")
+            return
+        
+        console.print(f"\n✓ Total: {len(merged_data):,} records", style="green bold")
+        
+        # Export with distinct filename
+        # Format: merged_{source}_{format} (e.g., merged_socrata_json)
+        base_filename = f"merged_{source}_{file_format}"
+        
+        if Confirm.ask("\nExport merged data?", default=True):
+            paths = self.exporter.append_or_create_all_formats(merged_data, base_filename)
+            for fmt, path in paths.items():
+                console.print(f"✓ {fmt.upper()}: {path}", style="green")
+            
+            console.print(f"\n✓ Merged {source.title()} {file_format.upper()} complete!", style="green bold")
+    
+    def combine_cross_source(self, file_format: str):
+        """
+        Combine files of one format from BOTH Socrata and Comptroller.
+        Merges by taxpayer ID.
+        
+        Args:
+            file_format: 'json', 'csv', or 'excel'
+        """
+        console.print(f"\n[bold]Combining all {file_format.upper()} files (Socrata + Comptroller)...[/bold]\n")
+        
+        # Step 1: Merge Socrata
+        console.print("[cyan]Step 1/3: Merging Socrata files...[/cyan]")
+        socrata_data = self._merge_all_files_by_format(
+            Path(SOCRATA_EXPORT_DIR), file_format, "Socrata"
+        )
+        
+        if not socrata_data:
+            console.print("⚠ No Socrata data found", style="yellow")
+            return
+        
+        console.print(f"✓ Socrata: {len(socrata_data):,} records", style="green")
+        
+        # Step 2: Merge Comptroller
+        console.print("\n[cyan]Step 2/3: Merging Comptroller files...[/cyan]")
+        comptroller_data = self._merge_all_files_by_format(
+            Path(COMPTROLLER_EXPORT_DIR), file_format, "Comptroller"
+        )
+        
+        if not comptroller_data:
+            console.print("⚠ No Comptroller data found", style="yellow")
+            return
+        
+        console.print(f"✓ Comptroller: {len(comptroller_data):,} records", style="green")
+        
+        # Step 3: Combine by taxpayer ID
+        console.print("\n[cyan]Step 3/3: Combining by taxpayer ID...[/cyan]")
+        
+        try:
+            combined_data = self.combiner.combine_by_taxpayer_id(
+                socrata_data,
+                comptroller_data
+            )
+            
+            console.print(f"✓ Combined: {len(combined_data):,} unique records", style="green bold")
+            
+        except Exception as e:
+            console.print(f"Error combining: {e}", style="red")
+            return
+        
+        # Export with distinct filename
+        # Format: combined_all_{format} (e.g., combined_all_json)
+        base_filename = f"combined_all_{file_format}"
+        
+        if Confirm.ask("\nExport combined data?", default=True):
+            paths = self.exporter.append_or_create_all_formats(combined_data, base_filename)
+            for fmt, path in paths.items():
+                console.print(f"✓ {fmt.upper()}: {path}", style="green")
+            
+            self.last_combined_data = combined_data
+            console.print(f"\n✓ Cross-source {file_format.upper()} combine complete!", style="green bold")
     
     def gpu_accelerated_combine(self):
         """GPU-accelerated combination for large datasets"""
@@ -729,6 +951,9 @@ class DataCombinerCLI:
                     
                 elif choice == "11":
                     self.show_gpu_stats()
+                    
+                elif choice == "12":
+                    self.handle_manual_combine()
                     
                 else:
                     console.print("\nInvalid option", style="red")
