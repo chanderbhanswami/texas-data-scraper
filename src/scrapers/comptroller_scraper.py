@@ -346,18 +346,62 @@ class BulkComptrollerScraper(ComptrollerScraper):
 
 
 class SmartComptrollerScraper(ComptrollerScraper):
-    """Smart scraper with caching and optimization"""
+    """Smart scraper with persistent disk caching and optimization"""
     
     def __init__(self):
         super().__init__(use_async=True, use_gpu=True)
-        self.cache = {}
-        logger.info("Initialized SmartComptrollerScraper with caching")
+        
+        # Disk-based cache directory
+        import os
+        from pathlib import Path
+        self.cache_dir = Path(os.getenv('CACHE_DIR', '.cache')) / 'comptroller'
+        self.cache_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Load existing cache from disk
+        self._load_cache_index()
+        logger.info(f"Initialized SmartComptrollerScraper with disk cache at {self.cache_dir} ({len(self.cache_index)} cached)")
+    
+    def _load_cache_index(self):
+        """Load list of cached taxpayer IDs from disk"""
+        self.cache_index = set()
+        if self.cache_dir.exists():
+            for f in self.cache_dir.glob('*.json'):
+                # Extract taxpayer ID from filename
+                tid = f.stem
+                self.cache_index.add(tid)
+    
+    def _get_cache_path(self, taxpayer_id: str):
+        """Get cache file path for a taxpayer ID"""
+        return self.cache_dir / f"{taxpayer_id}.json"
+    
+    def _load_from_cache(self, taxpayer_id: str) -> Optional[Dict]:
+        """Load a taxpayer record from disk cache"""
+        import json
+        cache_file = self._get_cache_path(taxpayer_id)
+        if cache_file.exists():
+            try:
+                with open(cache_file, 'r') as f:
+                    return json.load(f)
+            except Exception as e:
+                logger.warning(f"Failed to load cache for {taxpayer_id}: {e}")
+        return None
+    
+    def _save_to_cache(self, taxpayer_id: str, data: Dict):
+        """Save a taxpayer record to disk cache"""
+        import json
+        cache_file = self._get_cache_path(taxpayer_id)
+        try:
+            with open(cache_file, 'w') as f:
+                json.dump(data, f)
+            self.cache_index.add(taxpayer_id)
+        except Exception as e:
+            logger.warning(f"Failed to save cache for {taxpayer_id}: {e}")
     
     def scrape_with_cache(self,
                           taxpayer_ids: List[str],
                           cache_enabled: bool = True) -> List[Dict]:
         """
-        Scrape with caching support
+        Scrape with persistent disk caching support
         
         Args:
             taxpayer_ids: List of IDs
@@ -374,30 +418,37 @@ class SmartComptrollerScraper(ComptrollerScraper):
         results = []
         
         for tid in taxpayer_ids:
-            if tid in self.cache:
-                results.append(self.cache[tid])
-                logger.debug(f"Cache hit: {tid}")
-            else:
-                uncached_ids.append(tid)
+            if tid in self.cache_index:
+                cached_data = self._load_from_cache(tid)
+                if cached_data:
+                    results.append(cached_data)
+                    logger.debug(f"Cache hit: {tid}")
+                    continue
+            uncached_ids.append(tid)
         
-        logger.info(f"Cache: {len(results)} hits, {len(uncached_ids)} misses")
+        logger.info(f"Cache: {len(results)} hits, {len(uncached_ids)} misses (disk cache)")
         
         # Fetch uncached
         if uncached_ids:
             new_data = self.scrape_taxpayer_details(uncached_ids)
             
-            # Update cache
+            # Save each result to disk cache immediately
             for data in new_data:
-                tid = data['taxpayer_id']
-                self.cache[tid] = data
+                tid = data.get('taxpayer_id')
+                if tid:
+                    self._save_to_cache(tid, data)
             
             results.extend(new_data)
         
         return results
     
     def clear_cache(self):
-        """Clear the cache"""
-        self.cache.clear()
+        """Clear the disk cache"""
+        import shutil
+        if self.cache_dir.exists():
+            shutil.rmtree(self.cache_dir)
+            self.cache_dir.mkdir(parents=True, exist_ok=True)
+        self.cache_index.clear()
         logger.info("Cache cleared")
     
     def get_cache_stats(self) -> Dict:
