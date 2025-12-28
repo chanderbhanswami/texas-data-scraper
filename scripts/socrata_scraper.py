@@ -400,10 +400,17 @@ class SocrataScraperCLI:
                 for dataset_id in dataset_selection:
                     dataset_name = self._get_dataset_name(dataset_id)
                     console.print(f"  Searching {dataset_name}...")
-                    data = self.scraper.client.search(dataset_id, field, search_value, limit)
-                    if data:
-                        all_data.extend(data)
-                        console.print(f"    ✓ Found {len(data)} records", style="green")
+                    try:
+                        data = self.scraper.client.search(dataset_id, field, search_value, limit)
+                        if data:
+                            all_data.extend(data)
+                            console.print(f"    ✓ Found {len(data)} records", style="green")
+                        else:
+                            console.print(f"    No matches", style="dim")
+                    except Exception as ds_error:
+                        # Skip datasets that don't have this field
+                        console.print(f"    ⚠ Skipped (field '{field}' not found in this dataset)", style="yellow")
+                        logger.debug(f"Dataset {dataset_id} error: {ds_error}")
                 data = all_data
             else:
                 # Search single dataset

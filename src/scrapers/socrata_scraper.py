@@ -43,7 +43,7 @@ class SocrataScraper:
     
     def scrape_dataset(self, dataset_id: str, 
                        limit: Optional[int] = None,
-                       batch_size: int = 1000,
+                       batch_size: int = None,
                        progress_callback: Optional[Callable] = None) -> List[Dict]:
         """
         Scrape complete dataset with progress tracking
@@ -51,13 +51,17 @@ class SocrataScraper:
         Args:
             dataset_id: Dataset identifier
             limit: Maximum records to fetch (None = all)
-            batch_size: Records per batch
+            batch_size: Records per batch (None = use config default)
             progress_callback: Callback function(current, total)
             
         Returns:
             List of records
         """
-        logger.info(f"Starting scrape: dataset={dataset_id}, limit={limit}")
+        # Use config default if not specified
+        if batch_size is None:
+            batch_size = batch_config.BATCH_SIZE
+        
+        logger.info(f"Starting scrape: dataset={dataset_id}, limit={limit}, batch_size={batch_size}")
         
         all_data = []
         offset = 0
