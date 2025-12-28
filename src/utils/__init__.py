@@ -1,13 +1,18 @@
 """Utility functions"""
 
 from .logger import get_logger
-from .helper import (
-    get_gpu_accelerator,
-    get_socrata_scraper,
-    get_comptroller_scraper,
-    get_data_combiner,
-    get_deduplicator,
-    get_api_tester
+from .helpers import (
+    flatten_dict,
+    chunk_list,
+    safe_get,
+    format_bytes,
+    validate_taxpayer_id,
+    clean_taxpayer_id,
+    normalize_field_name,
+    extract_taxpayer_id_from_record,
+    normalize_record_fields,
+    smart_merge_records,
+    retry_on_exception
 )
 from .menu import (
     MenuItem,
@@ -26,6 +31,17 @@ from .menu import (
 
 __all__ = [
     'get_logger',
+    'flatten_dict',
+    'chunk_list',
+    'safe_get',
+    'format_bytes',
+    'validate_taxpayer_id',
+    'clean_taxpayer_id',
+    'normalize_field_name',
+    'extract_taxpayer_id_from_record',
+    'normalize_record_fields',
+    'smart_merge_records',
+    'retry_on_exception',
     'MenuItem',
     'Menu',
     'ProgressMenu',
@@ -37,11 +53,5 @@ __all__ = [
     'confirm_action',
     'select_from_list',
     'display_stats',
-    'create_panel',
-    'get_gpu_accelerator',
-    'get_socrata_scraper',
-    'get_comptroller_scraper',
-    'get_data_combiner',
-    'get_deduplicator',
-    'get_api_tester'
+    'create_panel'
 ]
