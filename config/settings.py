@@ -34,11 +34,15 @@ class SocrataConfig:
     BASE_URL = os.getenv('SOCRATA_BASE_URL', 'https://data.texas.gov/resource')
     APP_TOKEN = os.getenv('SOCRATA_APP_TOKEN', '')
     
-    # Dataset IDs
-    FRANCHISE_TAX_DATASET = os.getenv('SOCRATA_FRANCHISE_TAX_DATASET', '3d5u-4z8j')
-    SALES_TAX_DATASET = os.getenv('SOCRATA_SALES_TAX_DATASET', '3rmv-7xhn')
-    MIXED_BEVERAGE_DATASET = os.getenv('SOCRATA_MIXED_BEVERAGE_DATASET', 'na7f-r8iv')
-    TAX_REGISTRATIONS_DATASET = os.getenv('SOCRATA_TAX_REGISTRATIONS_DATASET', '8fma-5jfv')
+    # Dataset IDs (Updated December 2025 - verify on data.texas.gov)
+    # Active Franchise Tax Permit Holders
+    FRANCHISE_TAX_DATASET = os.getenv('SOCRATA_FRANCHISE_TAX_DATASET', 'v9x6-gh4c')
+    # Active Sales and Use Tax Permit Holders
+    SALES_TAX_DATASET = os.getenv('SOCRATA_SALES_TAX_DATASET', '9uhp-4edb')
+    # Mixed Beverage Gross Receipts
+    MIXED_BEVERAGE_DATASET = os.getenv('SOCRATA_MIXED_BEVERAGE_DATASET', 'naix-2893')
+    # Texas Lottery Retailer List (fallback test dataset)
+    TAX_REGISTRATIONS_DATASET = os.getenv('SOCRATA_TAX_REGISTRATIONS_DATASET', '3hce-cxc6')
     
     # Rate limits
     RATE_LIMIT_NO_TOKEN = int(os.getenv('SOCRATA_RATE_LIMIT_NO_TOKEN', 1000))

@@ -48,11 +48,13 @@ class APITester:
         self.test_socrata_api()
         
         # Test Comptroller API
-        console.print("\n" + Panel("COMPTROLLER API TESTS", style="bold green"))
+        console.print("")
+        console.print(Panel("COMPTROLLER API TESTS", style="bold green"))
         self.test_comptroller_api()
         
         # Test GPU and Scrapers
-        console.print("\n" + Panel("GPU & SCRAPER WRAPPER TESTS", style="bold magenta"))
+        console.print("")
+        console.print(Panel("GPU & SCRAPER WRAPPER TESTS", style="bold magenta"))
         self.test_gpu_and_scrapers()
         
         # Show summary

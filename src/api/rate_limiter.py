@@ -136,6 +136,22 @@ class AsyncRateLimiter:
             current_time = time.time()
             self.requests.append(current_time)
             self.last_request_time = current_time
+    
+    def get_stats(self) -> dict:
+        """Get rate limiter statistics (sync method for compatibility)"""
+        # Clean old requests synchronously
+        current_time = time.time()
+        cutoff_time = current_time - self.time_window
+        while self.requests and self.requests[0] < cutoff_time:
+            self.requests.popleft()
+        
+        return {
+            'requests_made': len(self.requests),
+            'max_requests': self.max_requests,
+            'time_window': self.time_window,
+            'requests_remaining': self.max_requests - len(self.requests),
+            'window_reset_in': self.time_window - (time.time() - self.requests[0]) if self.requests else 0
+        }
 
 
 class BackoffRetry:
