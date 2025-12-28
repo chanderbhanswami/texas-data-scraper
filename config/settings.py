@@ -72,6 +72,11 @@ class ComptrollerConfig:
     # Rate limits
     RATE_LIMIT = int(os.getenv('COMPTROLLER_RATE_LIMIT', 100))
     
+    # Batch processing settings for Comptroller API
+    CONCURRENT_REQUESTS = int(os.getenv('COMPTROLLER_CONCURRENT_REQUESTS', 2))
+    CHUNK_SIZE = int(os.getenv('COMPTROLLER_CHUNK_SIZE', 25))
+    REQUEST_DELAY = float(os.getenv('COMPTROLLER_REQUEST_DELAY', 1.5))
+    
     @property
     def has_api_key(self) -> bool:
         """Check if API key is configured"""

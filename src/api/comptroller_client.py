@@ -327,23 +327,33 @@ class AsyncComptrollerClient:
         }
     
     async def batch_get_taxpayer_info(self, taxpayer_ids: List[str],
-                                      max_concurrent: int = 5) -> List[Dict]:
+                                      max_concurrent: int = None) -> List[Dict]:
         """
         Async batch get taxpayer information with concurrency control
         
         Args:
             taxpayer_ids: List of taxpayer IDs
-            max_concurrent: Maximum concurrent requests
+            max_concurrent: Maximum concurrent requests (defaults to config setting)
             
         Returns:
             List of taxpayer information
         """
+        # Use config values if not specified
+        if max_concurrent is None:
+            max_concurrent = comptroller_config.CONCURRENT_REQUESTS
+        chunk_size = comptroller_config.CHUNK_SIZE
+        request_delay = comptroller_config.REQUEST_DELAY
+        
         semaphore = asyncio.Semaphore(max_concurrent)
+        results = []
         
         async def fetch_with_semaphore(taxpayer_id: str):
             async with semaphore:
                 try:
-                    return await self.get_complete_taxpayer_info(taxpayer_id)
+                    result = await self.get_complete_taxpayer_info(taxpayer_id)
+                    # Add delay to respect rate limit
+                    await asyncio.sleep(request_delay)
+                    return result
                 except Exception as e:
                     logger.error(f"Error processing {taxpayer_id}: {e}")
                     return {
@@ -353,10 +363,18 @@ class AsyncComptrollerClient:
                         'ftas_records': []
                     }
         
-        logger.info(f"Starting async batch fetch for {len(taxpayer_ids)} taxpayers")
+        logger.info(f"Starting async batch fetch for {len(taxpayer_ids)} taxpayers (concurrent={max_concurrent}, chunk={chunk_size}, delay={request_delay}s)")
         
-        tasks = [fetch_with_semaphore(tid) for tid in taxpayer_ids]
-        results = await asyncio.gather(*tasks)
+        # Process in smaller chunks to avoid overwhelming rate limiter
+        for i in range(0, len(taxpayer_ids), chunk_size):
+            chunk = taxpayer_ids[i:i+chunk_size]
+            tasks = [fetch_with_semaphore(tid) for tid in chunk]
+            chunk_results = await asyncio.gather(*tasks)
+            results.extend(chunk_results)
+            
+            # Log progress
+            processed = min(i + chunk_size, len(taxpayer_ids))
+            logger.info(f"Progress: {processed}/{len(taxpayer_ids)} taxpayers processed")
         
         logger.info(f"Async batch fetch complete: {len(results)} taxpayers processed")
         return results
