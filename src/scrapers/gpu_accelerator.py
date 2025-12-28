@@ -12,15 +12,59 @@ from config.settings import gpu_config
 logger = get_logger(__name__)
 
 # Try to import GPU libraries
+CUPY_AVAILABLE = False
+CUDF_AVAILABLE = False
+POLARS_AVAILABLE = False
+PYARROW_AVAILABLE = False
+
+# Check for cupy (GPU arrays)
 try:
     import cupy as cp
+    CUPY_AVAILABLE = True
+    logger.info("CuPy loaded - GPU array processing available")
+except ImportError:
+    pass
+
+# Check for cudf (GPU DataFrames - Linux/WSL2 only)
+try:
     import cudf
-    GPU_AVAILABLE = True
-    logger.info("GPU libraries loaded successfully")
-except ImportError as e:
-    GPU_AVAILABLE = False
-    logger.warning(f"GPU libraries not available: {e}")
-    logger.info("Falling back to CPU processing")
+    CUDF_AVAILABLE = True
+    logger.info("cuDF loaded - GPU DataFrame processing available")
+except ImportError:
+    pass
+
+# Check for polars (fast CPU DataFrames - works on Windows)
+try:
+    import polars as pl
+    POLARS_AVAILABLE = True
+    logger.info("Polars loaded - fast DataFrame processing available")
+except ImportError:
+    pass
+
+# Check for pyarrow (fast columnar data - works on Windows)
+try:
+    import pyarrow as pa
+    PYARROW_AVAILABLE = True
+    logger.info("PyArrow loaded - fast columnar processing available")
+except ImportError:
+    pass
+
+# GPU is available if we have cupy (with optional cudf or polars for DataFrames)
+GPU_AVAILABLE = CUPY_AVAILABLE
+if GPU_AVAILABLE:
+    if CUDF_AVAILABLE:
+        logger.info("GPU mode: cupy + cudf (full GPU acceleration)")
+    elif POLARS_AVAILABLE and PYARROW_AVAILABLE:
+        logger.info("GPU mode: cupy + polars + pyarrow (GPU arrays + fast DataFrames)")
+    elif POLARS_AVAILABLE:
+        logger.info("GPU mode: cupy + polars (GPU arrays + fast DataFrames)")
+    else:
+        logger.info("GPU mode: cupy only (GPU array processing)")
+else:
+    if POLARS_AVAILABLE or PYARROW_AVAILABLE:
+        logger.info("CPU mode with fast processing (polars/pyarrow available)")
+    else:
+        logger.warning("GPU libraries not available - using standard CPU processing")
 
 
 class GPUAccelerator:
@@ -55,14 +99,21 @@ class GPUAccelerator:
             
             # Get GPU info
             props = cp.cuda.runtime.getDeviceProperties(gpu_config.GPU_DEVICE_ID)
-            logger.info(f"GPU Detected: {props['name'].decode()}")
-            logger.info(f"Compute Capability: {props['major']}.{props['minor']}")
-            logger.info(f"Total Memory: {props['totalGlobalMem'] / (1024**3):.2f} GB")
+            self.device_name = props['name'].decode()
+            self.compute_capability = f"{props['major']}.{props['minor']}"
+            self.total_memory_gb = props['totalGlobalMem'] / (1024**3)
+            
+            logger.info(f"GPU Detected: {self.device_name}")
+            logger.info(f"Compute Capability: {self.compute_capability}")
+            logger.info(f"Total Memory: {self.total_memory_gb:.2f} GB")
             
             return True
             
         except Exception as e:
             logger.error(f"GPU check failed: {e}")
+            self.device_name = None
+            self.compute_capability = None
+            self.total_memory_gb = None
             return False
     
     def _initialize_gpu(self):

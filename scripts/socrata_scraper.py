@@ -26,6 +26,7 @@ from src.processors.data_validator import DataValidator
 from src.utils.helpers import format_bytes, clean_taxpayer_id
 from config.settings import (
     socrata_config, 
+    batch_config,
     print_configuration,
     SOCRATA_EXPORT_DIR
 )
@@ -270,7 +271,7 @@ class SocrataScraperCLI:
                 data = self.scraper.scrape_dataset(
                     dataset_id,
                     limit=None,  # Full dataset
-                    batch_size=1000,
+                    batch_size=batch_config.BATCH_SIZE,
                     progress_callback=progress_callback
                 )
                 
@@ -320,7 +321,7 @@ class SocrataScraperCLI:
             data = self.scraper.scrape_dataset(
                 dataset_id,
                 limit=limit,
-                batch_size=1000
+                batch_size=batch_config.BATCH_SIZE
             )
             
             if data:
@@ -476,7 +477,7 @@ class SocrataScraperCLI:
                 dataset_id,
                 existing_ids=existing_ids,
                 id_field='taxpayer_number',
-                batch_size=1000
+                batch_size=batch_config.BATCH_SIZE
             )
             
             if new_data:

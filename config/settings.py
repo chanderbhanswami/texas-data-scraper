@@ -36,13 +36,13 @@ class SocrataConfig:
     
     # Dataset IDs (Updated December 2025 - verify on data.texas.gov)
     # Active Franchise Tax Permit Holders
-    FRANCHISE_TAX_DATASET = os.getenv('SOCRATA_FRANCHISE_TAX_DATASET', 'v9x6-gh4c')
+    FRANCHISE_TAX_DATASET = os.getenv('SOCRATA_FRANCHISE_TAX_DATASET', '9cir-efmm')
     # Active Sales and Use Tax Permit Holders
-    SALES_TAX_DATASET = os.getenv('SOCRATA_SALES_TAX_DATASET', '9uhp-4edb')
+    SALES_TAX_DATASET = os.getenv('SOCRATA_SALES_TAX_DATASET', 'jrea-zgmq')
     # Mixed Beverage Gross Receipts
-    MIXED_BEVERAGE_DATASET = os.getenv('SOCRATA_MIXED_BEVERAGE_DATASET', 'naix-2893')
+    MIXED_BEVERAGE_DATASET = os.getenv('SOCRATA_MIXED_BEVERAGE_DATASET', 'quub-uptv')
     # Texas Lottery Retailer List (fallback test dataset)
-    TAX_REGISTRATIONS_DATASET = os.getenv('SOCRATA_TAX_REGISTRATIONS_DATASET', '3hce-cxc6')
+    TAX_REGISTRATIONS_DATASET = os.getenv('SOCRATA_TAX_REGISTRATIONS_DATASET', 'a5y7-t5ih')
     
     # Rate limits
     RATE_LIMIT_NO_TOKEN = int(os.getenv('SOCRATA_RATE_LIMIT_NO_TOKEN', 1000))
