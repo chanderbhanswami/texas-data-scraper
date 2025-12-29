@@ -51,15 +51,19 @@ env/
 exports/socrata/*.json
 exports/socrata/*.csv
 exports/socrata/*.xlsx
+exports/socrata/*.checksum
 exports/comptroller/*.json
 exports/comptroller/*.csv
 exports/comptroller/*.xlsx
+exports/comptroller/*.checksum
 exports/combined/*.json
 exports/combined/*.csv
 exports/combined/*.xlsx
+exports/combined/*.checksum
 exports/deduplicated/*.json
 exports/deduplicated/*.csv
 exports/deduplicated/*.xlsx
+exports/deduplicated/*.checksum
 
 # Keep directory structure
 !exports/.gitkeep
