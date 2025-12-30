@@ -6,7 +6,8 @@
 texas-data-scraper/
 │
 ├── .cache/                           # Cache directory
-│   └── progress/                     # Progress checkpoints for resume
+│   ├── progress/                     # Progress checkpoints for resume
+│   └── comptroller/                  # Comptroller API response cache (v1.4.0)
 │
 ├── config/
 │   ├── __init__.py                   # Config package initialization
@@ -24,6 +25,7 @@ texas-data-scraper/
 │   ├── combined/                     # Combined data exports
 │   ├── comptroller/                  # Comptroller data exports
 │   ├── deduplicated/                 # Deduplicated data exports
+│   ├── polished/                     # Outlet-enriched data exports (v1.4.0)
 │   └── socrata/                      # Socrata data exports
 │
 ├── logs/                             # Log files directory
@@ -34,6 +36,7 @@ texas-data-scraper/
 │   ├── comptroller_scraper.py        # Main Comptroller scraper CLI
 │   ├── data_combiner.py              # Data combination CLI
 │   ├── deduplicator.py               # Deduplication CLI
+│   ├── outlet_enricher.py            # Outlet data enrichment CLI (v1.4.0)
 │   └── socrata_scraper.py            # Main Socrata scraper CLI
 │
 ├── src/
@@ -53,7 +56,8 @@ texas-data-scraper/
 │   │   ├── __init__.py               # Processors package initialization
 │   │   ├── data_combiner.py          # Combine Socrata + Comptroller data
 │   │   ├── data_validator.py         # Data validation
-│   │   └── deduplicator.py           # Remove duplicates
+│   │   ├── deduplicator.py           # Remove duplicates
+│   │   └── outlet_enricher.py        # Outlet data enrichment (v1.4.0)
 │   │
 │   ├── scrapers/
 │   │   ├── __init__.py               # Scrapers package initialization
@@ -178,7 +182,27 @@ texas-data-scraper/
   - Granular control: Socrata only, Comptroller only, or cross-source
   - Distinct filenames: `merged_socrata_json.*`, `combined_all_csv.*`, etc.
 
-### 11. Future Pipeline (Planned)
+### 11. Outlet Enrichment & Caching (v1.4.0)
+- **Outlet Data Enricher** (New Script!)
+  - `scripts/outlet_enricher.py` - Interactive CLI
+  - `src/processors/outlet_enricher.py` - Core processor
+  - Extracts outlet fields from duplicate Socrata records
+  - Enriches deduplicated data with outlet info (address, NAICS, permits)
+  - New export directory: `exports/polished/`
+- **Persistent Disk Caching** (Comptroller Scraper)
+  - Cache saves to `.cache/comptroller/` as JSON files
+  - Survives script restarts - truly resumable!
+  - Option 3 "With Caching" now persists across sessions
+- **Network Retry with Exponential Backoff**
+  - Automatic retry on network errors (DNS, connection failures)
+  - Up to 3 retries with increasing delays (5s, 10s, 20s)
+  - Prevents data loss during internet outages
+- **Configurable Comptroller Settings**
+  - `COMPTROLLER_CONCURRENT_REQUESTS` - Concurrent API calls
+  - `COMPTROLLER_CHUNK_SIZE` - Batch size
+  - `COMPTROLLER_REQUEST_DELAY` - Delay between requests
+
+### 12. Future Pipeline (Planned)
 - **Phase 1** (Current): Socrata + Comptroller data scraping ✅
 - **Phase 2** (Planned): Google Places API integration for business details
 - **Phase 3** (Planned): Clearbit API for company enrichment (emails, contacts, social media)

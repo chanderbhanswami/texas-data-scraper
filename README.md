@@ -49,6 +49,10 @@ A comprehensive, production-ready toolkit for scraping and processing data from 
 - **Separate Comptroller Files**: Source-specific filenames per dataset (v1.3.0)
 - **Master Combine All**: Full pipeline merge of all Socrata + Comptroller data (v1.3.0)
 - **9 Manual Combine Options**: Granular control over file merging (v1.3.0)
+- **Outlet Data Enricher**: Extract outlet fields from duplicate Socrata records (v1.4.0)
+- **Persistent Disk Caching**: Comptroller cache survives restarts - truly resumable (v1.4.0)
+- **Network Retry with Backoff**: Automatic recovery from internet outages (v1.4.0)
+- **Configurable Comptroller Settings**: Fine-tune concurrent requests, chunk size, delays (v1.4.0)
 
 ### Data Sources
 - Franchise Tax Permit Holders
@@ -232,7 +236,33 @@ python scripts/deduplicator.py
 2. Review deduplication statistics
 3. Files saved to `exports/deduplicated/`
 
-### 5. API Endpoint Tester
+### 5. Outlet Data Enricher (v1.4.0)
+
+Enrich deduplicated data with outlet information from duplicate records:
+
+```bash
+python scripts/outlet_enricher.py
+```
+
+**Features:**
+- Extract outlet fields from duplicate Socrata records
+- Enrich deduplicated data with outlet info
+- GPU acceleration support
+- Handles multiple outlets per taxpayer
+
+**Outlet Fields Extracted:**
+- `outlet_number`, `outlet_name`, `outlet_address`
+- `outlet_city`, `outlet_state`, `outlet_zip_code`
+- `outlet_county_code`, `outlet_naics_code`
+- `outlet_permit_issue_date`, `outlet_first_sales_date`
+
+**Example Workflow:**
+1. Select "1" for Auto-Enrich
+2. Choose Socrata source file
+3. Choose Deduplicated file
+4. Files saved to `exports/polished/`
+
+### 6. API Endpoint Tester
 
 Test all API endpoints:
 
@@ -253,6 +283,8 @@ python scripts/api_tester.py
 texas-data-scraper/
 │
 ├── .cache/                           # Cache directory
+│   ├── progress/                     # Progress checkpoints for resume
+│   └── comptroller/                  # Comptroller API response cache (v1.4.0)
 │
 ├── config/
 │   ├── __init__.py                   # Config package initialization
@@ -270,6 +302,7 @@ texas-data-scraper/
 │   ├── combined/                     # Combined data exports
 │   ├── comptroller/                  # Comptroller data exports
 │   ├── deduplicated/                 # Deduplicated data exports
+│   ├── polished/                     # Outlet-enriched data exports (v1.4.0)
 │   └── socrata/                      # Socrata data exports
 │
 ├── logs/                             # Log files directory
@@ -280,6 +313,7 @@ texas-data-scraper/
 │   ├── comptroller_scraper.py        # Main Comptroller scraper CLI
 │   ├── data_combiner.py              # Data combination CLI
 │   ├── deduplicator.py               # Deduplication CLI
+│   ├── outlet_enricher.py            # Outlet data enrichment CLI (v1.4.0)
 │   └── socrata_scraper.py            # Main Socrata scraper CLI
 │
 ├── src/
@@ -299,7 +333,8 @@ texas-data-scraper/
 │   │   ├── __init__.py               # Processors package initialization
 │   │   ├── data_combiner.py          # Combine Socrata + Comptroller data
 │   │   ├── data_validator.py         # Data validation
-│   │   └── deduplicator.py           # Remove duplicates
+│   │   ├── deduplicator.py           # Remove duplicates
+│   │   └── outlet_enricher.py        # Outlet data enrichment (v1.4.0)
 │   │
 │   ├── scrapers/
 │   │   ├── __init__.py               # Scrapers package initialization

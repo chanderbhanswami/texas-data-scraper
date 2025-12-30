@@ -71,9 +71,18 @@ python scripts/deduplicator.py
 - Select: **4** (Deduplicate all combined files)
 - Final clean data saved to: `exports/deduplicated/`
 
+### Step 5: Enrich with Outlet Data (Optional, v1.4.0)
+```bash
+python scripts/outlet_enricher.py
+```
+- Select: **1** (Auto-Enrich)
+- Choose: Socrata source file
+- Choose: Deduplicated file
+- Enriched data saved to: `exports/polished/`
+
 ## ✅ That's It!
 
-Your clean, enriched data is now in `exports/deduplicated/` in JSON, CSV, and Excel formats!
+Your clean, enriched data is now in `exports/polished/` (or `exports/deduplicated/`) in JSON, CSV, and Excel formats!
 
 ## 📊 What You Get
 

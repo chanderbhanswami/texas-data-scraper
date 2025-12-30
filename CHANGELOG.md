@@ -5,6 +5,50 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.0] - 2025-12-30
+
+### Added
+- **Outlet Data Enricher** (New Script!)
+  - `scripts/outlet_enricher.py` - Interactive CLI
+  - `src/processors/outlet_enricher.py` - Core processor
+  - Extracts outlet fields from duplicate Socrata records
+  - Enriches deduplicated data with outlet info (address, NAICS, permits)
+  - Supports multiple outlets per taxpayer
+  - GPU acceleration support
+  - New export directory: `exports/polished/`
+
+- **Persistent Disk Caching** (Comptroller Scraper)
+  - Cache now saves to `.cache/comptroller/` as JSON files
+  - Survives script restarts - truly resumable!
+  - Each taxpayer cached individually
+  - Option 3 "With Caching" now persists across sessions
+
+- **Network Retry with Exponential Backoff**
+  - Automatic retry on network errors (DNS, connection failures)
+  - Up to 3 retries with increasing delays (5s, 10s, 20s)
+  - Prevents data loss during internet outages
+  - Applies to both API endpoints
+
+- **Configurable Comptroller Settings**
+  - `COMPTROLLER_CONCURRENT_REQUESTS` - Concurrent API calls (default: 2)
+  - `COMPTROLLER_CHUNK_SIZE` - Batch size (default: 25)
+  - `COMPTROLLER_REQUEST_DELAY` - Delay between requests (default: 1.5s)
+
+### Changed
+- Comptroller API key header fixed: now uses `x-api-key` per official docs
+- `SmartComptrollerScraper` uses disk cache instead of memory cache
+- Added `POLISHED_EXPORT_DIR` to settings.py
+
+### Technical Details
+- New files:
+  - `src/processors/outlet_enricher.py` - OutletEnricher, AdvancedOutletEnricher
+  - `scripts/outlet_enricher.py` - OutletEnricherCLI
+  - `exports/polished/.gitkeep` - Output directory
+- Modified files:
+  - `src/scrapers/comptroller_scraper.py` - Disk caching
+  - `src/api/comptroller_client.py` - Network retry, configurable settings
+  - `config/settings.py` - POLISHED_EXPORT_DIR, Comptroller settings
+
 ## [1.3.0] - 2025-12-28
 
 ### Added

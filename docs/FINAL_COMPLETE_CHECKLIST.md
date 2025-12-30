@@ -42,12 +42,13 @@
 25. ✅ **src/scrapers/socrata_scraper.py** - Socrata scraper module
 26. ✅ **src/scrapers/comptroller_scraper.py** - Comptroller scraper module
 
-### 📁 src/processors/ (4 files) - ✅ COMPLETE
+### 📁 src/processors/ (5 files) - ✅ COMPLETE
 
 27. ✅ **src/processors/__init__.py** - Processors package init
 28. ✅ **src/processors/data_combiner.py** - Smart data merging
 29. ✅ **src/processors/deduplicator.py** - Deduplication (3 strategies)
 30. ✅ **src/processors/data_validator.py** - Data validation & cleaning
+31. ✅ **src/processors/outlet_enricher.py** - Outlet data extraction (v1.4.0)
 
 ### 📁 src/exporters/ (2 files) - ✅ COMPLETE
 
@@ -61,14 +62,15 @@
 35. ✅ **src/utils/menu.py** - Interactive CLI menus
 36. ✅ **src/utils/helpers.py** - Helper functions (COMPLETE with 50+ functions)
 
-### 📁 scripts/ (6 files) - ✅ COMPLETE
+### 📁 scripts/ (7 files) - ✅ COMPLETE
 
 37. ✅ **scripts/socrata_scraper.py** - Socrata CLI (17 options)
 38. ✅ **scripts/comptroller_scraper.py** - Comptroller CLI
 39. ✅ **scripts/data_combiner.py** - Data combiner CLI
 40. ✅ **scripts/deduplicator.py** - Deduplicator CLI
-41. ✅ **scripts/api_tester.py** - API endpoint tester
-42. ✅ **scripts/batch_processor.py** - Batch processing utility
+41. ✅ **scripts/outlet_enricher.py** - Outlet enricher CLI (v1.4.0)
+42. ✅ **scripts/api_tester.py** - API endpoint tester
+43. ✅ **scripts/batch_processor.py** - Batch processing utility
 
 ### 📁 tests/ (5 files) - ✅ COMPLETE
 
@@ -79,34 +81,35 @@
 47. ✅ **tests/test_scrapers.py** - Scraper module tests
 48. ✅ **tests/test_integration.py** - Integration tests
 
-### 📁 Empty Directories (7 with .gitkeep) - ✅ COMPLETE
+### 📁 Empty Directories (8 with .gitkeep) - ✅ COMPLETE
 
 49. ✅ **exports/.gitkeep**
 50. ✅ **exports/socrata/.gitkeep**
 51. ✅ **exports/comptroller/.gitkeep**
 52. ✅ **exports/combined/.gitkeep**
 53. ✅ **exports/deduplicated/.gitkeep**
-54. ✅ **exports/batch/.gitkeep** (for batch processor)
-55. ✅ **logs/.gitkeep**
+54. ✅ **exports/polished/.gitkeep** (v1.4.0 - outlet enriched)
+55. ✅ **exports/batch/.gitkeep** (for batch processor)
+56. ✅ **logs/.gitkeep**
 
 ---
 
 ## 📊 FINAL STATISTICS
 
 ### Files Created
-- **Total Files**: 55 files
-- **Python Modules**: 20 core modules
-- **Python Scripts**: 7 CLI scripts (including run.py)
+- **Total Files**: 60 files
+- **Python Modules**: 22 core modules
+- **Python Scripts**: 8 CLI scripts (including run.py, outlet_enricher.py)
 - **Test Files**: 5 test suites
 - **Documentation**: 6 markdown files
 - **Configuration**: 5 config files
 - **Package Inits**: 9 __init__.py files
-- **Git Files**: 2 (.gitignore, .gitkeep x7)
+- **Git Files**: 2 (.gitignore, .gitkeep x8)
 
 ### Code Statistics
-- **Total Lines of Code**: ~15,000+ lines
-- **Functions/Methods**: 300+ functions
-- **Classes**: 40+ classes
+- **Total Lines of Code**: ~17,000+ lines
+- **Functions/Methods**: 380+ functions
+- **Classes**: 55+ classes
 - **Test Cases**: 30+ test functions
 
 ---
@@ -137,6 +140,8 @@
 - [x] SmartDataCombiner
 - [x] Deduplicator
 - [x] AdvancedDeduplicator
+- [x] OutletEnricher (v1.4.0)
+- [x] AdvancedOutletEnricher (v1.4.0)
 - [x] DataValidator
 - [x] Field standardization
 - [x] Data cleaning
@@ -215,6 +220,24 @@
 - [x] Master Combine All - full pipeline merge (Data Combiner Option 6)
 - [x] 9 Manual Combine Options - granular file merging (Data Combiner Option 12)
 - [x] Smart format detection - JSON-only for bulk to avoid duplication
+
+### ✅ Outlet Enrichment & Resilience (v1.4.0)
+- [x] **Outlet Data Enricher** - New script and processor
+  - [x] `scripts/outlet_enricher.py` - Interactive CLI with 6 menu options
+  - [x] `src/processors/outlet_enricher.py` - OutletEnricher & AdvancedOutletEnricher
+  - [x] Extracts outlet fields from duplicate Socrata records
+  - [x] Enriches deduplicated data with outlet info
+  - [x] New export directory: `exports/polished/`
+- [x] **Persistent Disk Caching** - Comptroller cache survives restarts
+  - [x] Cache saved to `.cache/comptroller/*.json`
+  - [x] Truly resumable - pick up exactly where you left off
+- [x] **Network Retry with Exponential Backoff**
+  - [x] Up to 3 retries with delays (5s, 10s, 20s)
+  - [x] Handles DNS failures, connection drops
+- [x] **Configurable Comptroller Settings**
+  - [x] `COMPTROLLER_CONCURRENT_REQUESTS`
+  - [x] `COMPTROLLER_CHUNK_SIZE`
+  - [x] `COMPTROLLER_REQUEST_DELAY`
 
 ---
 
@@ -376,7 +399,7 @@ This toolkit is ready for:
 
 **Status**: COMPLETE ✅
 **Date**: December 2025
-**Version**: 1.3.0
+**Version**: 1.4.0
 
 ---
 

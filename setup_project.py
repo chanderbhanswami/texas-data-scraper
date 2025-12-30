@@ -22,10 +22,12 @@ def create_directory_structure():
         'exports/comptroller',
         'exports/combined',
         'exports/deduplicated',
+        'exports/polished',  # v1.4.0: Outlet-enriched data
         'exports/batch',
         'logs',
         '.cache',
-        '.cache/progress'  # v1.1.0: Progress checkpoints
+        '.cache/progress',  # v1.1.0: Progress checkpoints
+        '.cache/comptroller'  # v1.4.0: Comptroller API cache
     ]
     
     print("Creating directory structure...")
@@ -66,10 +68,12 @@ def create_gitkeep_files():
         'exports/comptroller',
         'exports/combined',
         'exports/deduplicated',
+        'exports/polished',  # v1.4.0
         'exports/batch',
         'logs',
         '.cache',
-        '.cache/progress'
+        '.cache/progress',
+        '.cache/comptroller'  # v1.4.0
     ]
     
     print("\nCreating .gitkeep files...")

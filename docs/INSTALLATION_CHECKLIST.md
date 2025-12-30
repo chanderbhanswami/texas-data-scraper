@@ -213,8 +213,16 @@ Follow these steps to ensure proper installation:
   # Option 4 (deduplicate all)
   ```
 
+- [ ] Enrich with outlet data (v1.4.0)
+  ```bash
+  python scripts/outlet_enricher.py
+  # Option 1 (Auto-Enrich)
+  ```
+
 - [ ] Verify final output
   ```bash
+  ls -lh exports/polished/
+  # Or if skipping enricher:
   ls -lh exports/deduplicated/
   ```
 

@@ -22,7 +22,7 @@ def show_main_menu():
     title = """
     ╔═══════════════════════════════════════════════════════════╗
     ║                                                           ║
-    ║           TEXAS GOVERNMENT DATA SCRAPER v1.2             ║
+    ║           TEXAS GOVERNMENT DATA SCRAPER v1.4             ║
     ║                                                           ║
     ║              Comprehensive Data Extraction Tool          ║
     ║                                                           ║
@@ -40,14 +40,15 @@ def show_main_menu():
     [bold green]DATA PROCESSING[/bold green]
     [cyan]4[/cyan]. Data Combiner            - Merge multiple sources
     [cyan]5[/cyan]. Deduplicator             - Remove duplicates
+    [cyan]6[/cyan]. Outlet Enricher          - Add outlet data to records
     
     [bold yellow]UTILITIES[/bold yellow]
-    [cyan]6[/cyan]. API Tester               - Test API endpoints
-    [cyan]7[/cyan]. Configuration             - View/edit settings
+    [cyan]7[/cyan]. API Tester               - Test API endpoints
+    [cyan]8[/cyan]. Configuration             - View/edit settings
     
     [bold magenta]WORKFLOWS[/bold magenta]
-    [cyan]8[/cyan]. Quick Start Workflow     - Guided setup
-    [cyan]9[/cyan]. Full Pipeline            - Complete automation
+    [cyan]9[/cyan]. Quick Start Workflow     - Guided setup
+    [cyan]10[/cyan]. Full Pipeline            - Complete automation
     
     [bold red]0[/bold red]. Exit
     """
@@ -97,6 +98,15 @@ def run_deduplicator():
     
     from scripts.deduplicator import DeduplicatorCLI
     cli = DeduplicatorCLI()
+    cli.run()
+
+
+def run_outlet_enricher():
+    """Run outlet enricher"""
+    console.print("\n[bold cyan]Launching Outlet Enricher...[/bold cyan]\n")
+    
+    from scripts.outlet_enricher import OutletEnricherCLI
+    cli = OutletEnricherCLI()
     cli.run()
 
 
@@ -276,7 +286,7 @@ def main():
             
             choice = Prompt.ask(
                 "\n[bold cyan]Select an option[/bold cyan]",
-                choices=["1", "2", "3", "4", "5", "6", "7", "8", "9", "0"],
+                choices=["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "0"],
                 default="0"
             )
             
@@ -301,15 +311,18 @@ def main():
                 run_deduplicator()
                 
             elif choice == "6":
-                run_api_tester()
+                run_outlet_enricher()
                 
             elif choice == "7":
-                show_configuration()
+                run_api_tester()
                 
             elif choice == "8":
-                run_quick_start()
+                show_configuration()
                 
             elif choice == "9":
+                run_quick_start()
+                
+            elif choice == "10":
                 run_full_pipeline()
                 
         except KeyboardInterrupt:

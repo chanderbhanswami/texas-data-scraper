@@ -151,6 +151,11 @@ REQUEST_DELAY=0.2
 # For large datasets
 GPU_MEMORY_LIMIT=10240
 CACHE_ENABLED=true
+
+# v1.4.0 Comptroller-specific settings
+COMPTROLLER_CONCURRENT_REQUESTS=2
+COMPTROLLER_CHUNK_SIZE=25
+COMPTROLLER_REQUEST_DELAY=1.5
 ```
 
 ### 🔒 Security Best Practices
