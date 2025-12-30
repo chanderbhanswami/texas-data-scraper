@@ -28,6 +28,8 @@ from .menu import (
     display_stats,
     create_panel
 )
+from .progress_manager import ProgressManager
+from .checksum import generate_checksum, verify_checksum
 
 __all__ = [
     'get_logger',
@@ -53,5 +55,8 @@ __all__ = [
     'confirm_action',
     'select_from_list',
     'display_stats',
-    'create_panel'
+    'create_panel',
+    'ProgressManager',
+    'generate_checksum',
+    'verify_checksum'
 ]

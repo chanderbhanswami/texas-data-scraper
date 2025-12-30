@@ -5,6 +5,62 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.0] - 2025-12-30
+
+### Added
+- **Google Places API Integration** (New Pipeline Step!)
+  - `scripts/google_places_scraper.py` - Interactive CLI
+  - `src/api/google_places_client.py` - Sync/Async API clients
+  - `src/scrapers/google_places_scraper.py` - Scraper wrapper with caching
+  - Two-step workflow: Find Place IDs → Get Place Details
+  - Extracts phone numbers, websites, ratings, business hours, etc.
+  - Persistent disk caching for resumable operations
+  - GPU acceleration support
+  - New export directories:
+    - `exports/place_ids/` - Place IDs matched to taxpayers
+    - `exports/places_details/` - Full Google Places data
+    - `exports/final/` - Polished + Places combined
+
+- **Data Combiner: Google Places Option** (Option 13)
+  - Combines polished data with Google Places details
+  - Matches by taxpayer_id
+  - Adds `google_` prefixed fields (google_phone, google_website, etc.)
+  - Records without Places data remain unchanged
+  - Exports to `exports/final/`
+
+- **Configurable Google Places Settings**
+  - `GOOGLE_PLACES_API_KEY` - Your Google API key
+  - `GOOGLE_PLACES_BILLING` - true/false for rate limits
+  - `GOOGLE_PLACES_RATE_LIMIT_STANDARD` - 600 QPM without billing
+  - `GOOGLE_PLACES_RATE_LIMIT_BILLING` - 6000 QPM with billing
+  - `GOOGLE_PLACES_CONCURRENT_REQUESTS` - Concurrent API calls
+  - `GOOGLE_PLACES_CHUNK_SIZE` - Batch processing size
+
+### Changed
+- Updated main menu (run.py) - Google Places Scraper is now option 7
+- Menu options renumbered: API Tester (8), Config (9), Workflows (10-11)
+- Added `GooglePlacesConfig` class to settings.py
+
+### New Pipeline
+```
+Socrata → Comptroller → Combiner → Deduplicator → Outlet Enricher → Google Places → Final Combiner
+```
+
+### Technical Details
+- New files:
+  - `src/api/google_places_client.py` - GooglePlacesClient, AsyncGooglePlacesClient
+  - `src/scrapers/google_places_scraper.py` - GooglePlacesScraper, SmartGooglePlacesScraper
+  - `scripts/google_places_scraper.py` - GooglePlacesScraperCLI
+  - `exports/place_ids/.gitkeep`
+  - `exports/places_details/.gitkeep`
+  - `exports/final/.gitkeep`
+- Modified files:
+  - `config/.env.example` - Google Places settings
+  - `config/settings.py` - GooglePlacesConfig, new export dirs
+  - `scripts/data_combiner.py` - New option 13
+  - `scripts/run.py` - New option 7
+  - `setup_project.py` - New directories
+
 ## [1.4.0] - 2025-12-30
 
 ### Added

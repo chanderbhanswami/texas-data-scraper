@@ -3,6 +3,7 @@
 from .gpu_accelerator import GPUAccelerator, get_gpu_accelerator
 from .socrata_scraper import SocrataScraper, BulkSocrataScraper
 from .comptroller_scraper import ComptrollerScraper, BulkComptrollerScraper, SmartComptrollerScraper
+from .google_places_scraper import GooglePlacesScraper, SmartGooglePlacesScraper
 
 __all__ = [
     'GPUAccelerator',
@@ -11,5 +12,7 @@ __all__ = [
     'BulkSocrataScraper',
     'ComptrollerScraper',
     'BulkComptrollerScraper',
-    'SmartComptrollerScraper'
+    'SmartComptrollerScraper',
+    'GooglePlacesScraper',
+    'SmartGooglePlacesScraper'
 ]

@@ -7,7 +7,10 @@ texas-data-scraper/
 │
 ├── .cache/                           # Cache directory
 │   ├── progress/                     # Progress checkpoints for resume
-│   └── comptroller/                  # Comptroller API response cache (v1.4.0)
+│   ├── comptroller/                  # Comptroller API response cache (v1.4.0)
+│   └── google_places/                # Google Places API cache (v1.5.0)
+│       ├── place_ids/                # Cached place ID lookups
+│       └── details/                  # Cached place details
 │
 ├── config/
 │   ├── __init__.py                   # Config package initialization
@@ -26,6 +29,9 @@ texas-data-scraper/
 │   ├── comptroller/                  # Comptroller data exports
 │   ├── deduplicated/                 # Deduplicated data exports
 │   ├── polished/                     # Outlet-enriched data exports (v1.4.0)
+│   ├── place_ids/                    # Google Place IDs exports (v1.5.0)
+│   ├── places_details/               # Google Places details exports (v1.5.0)
+│   ├── final/                        # Final combined data exports (v1.5.0)
 │   └── socrata/                      # Socrata data exports
 │
 ├── logs/                             # Log files directory
@@ -36,6 +42,7 @@ texas-data-scraper/
 │   ├── comptroller_scraper.py        # Main Comptroller scraper CLI
 │   ├── data_combiner.py              # Data combination CLI
 │   ├── deduplicator.py               # Deduplication CLI
+│   ├── google_places_scraper.py      # Google Places API CLI (v1.5.0)
 │   ├── outlet_enricher.py            # Outlet data enrichment CLI (v1.4.0)
 │   └── socrata_scraper.py            # Main Socrata scraper CLI
 │
@@ -45,6 +52,7 @@ texas-data-scraper/
 │   ├── api/
 │   │   ├── __init__.py               # API package initialization
 │   │   ├── comptroller_client.py     # Comptroller API client
+│   │   ├── google_places_client.py   # Google Places API client (v1.5.0)
 │   │   ├── rate_limiter.py           # Rate limiting logic
 │   │   └── socrata_client.py         # Socrata API client
 │   │
@@ -62,6 +70,7 @@ texas-data-scraper/
 │   ├── scrapers/
 │   │   ├── __init__.py               # Scrapers package initialization
 │   │   ├── comptroller_scraper.py    # Comptroller data scraper
+│   │   ├── google_places_scraper.py  # Google Places scraper (v1.5.0)
 │   │   ├── gpu_accelerator.py        # GPU acceleration utilities
 │   │   └── socrata_scraper.py        # Socrata data scraper
 │   │
@@ -76,6 +85,7 @@ texas-data-scraper/
 ├── tests/
 │   ├── __init__.py                   # Tests package initialization
 │   ├── test_comptroller_api.py       # Comptroller API tests
+│   ├── test_google_places_api.py     # Google Places API tests
 │   ├── test_integration.py           # Integration tests
 │   ├── test_processors.py            # Processor tests
 │   ├── test_scrapers.py              # Scraper tests
@@ -202,9 +212,29 @@ texas-data-scraper/
   - `COMPTROLLER_CHUNK_SIZE` - Batch size
   - `COMPTROLLER_REQUEST_DELAY` - Delay between requests
 
-### 12. Future Pipeline (Planned)
-- **Phase 1** (Current): Socrata + Comptroller data scraping ✅
-- **Phase 2** (Planned): Google Places API integration for business details
+### 12. Google Places API Integration (v1.5.0)
+- **Google Places Scraper** (New Script!)
+  - `scripts/google_places_scraper.py` - Interactive CLI with 11 menu options
+  - `src/api/google_places_client.py` - Sync/Async API clients
+  - `src/scrapers/google_places_scraper.py` - Scraper with disk caching
+  - Two-step workflow: Find Place IDs → Get Place Details
+  - New export directories:
+    - `exports/place_ids/` - Place IDs matched to taxpayers
+    - `exports/places_details/` - Full Google Places data
+    - `exports/final/` - Polished + Places combined
+- **Fields Extracted from Google Places**
+  - Phone numbers, website, Google Maps URL
+  - Ratings, reviews, business status
+  - Opening hours, categories, coordinates
+- **Data Combiner Option 13** - Combine Google Places with polished data
+- **Configurable Settings**
+  - `GOOGLE_PLACES_API_KEY` - Your API key
+  - `GOOGLE_PLACES_BILLING` - true/false for rate limits
+  - `GOOGLE_PLACES_RATE_LIMIT_*` - Rate limiting
+
+### 13. Future Pipeline (Roadmap)
+- **Phase 1** (Complete): Socrata + Comptroller data scraping ✅
+- **Phase 2** (Complete): Google Places API integration ✅
 - **Phase 3** (Planned): Clearbit API for company enrichment (emails, contacts, social media)
 - **Phase 4** (Planned): Unified company profile generation
 

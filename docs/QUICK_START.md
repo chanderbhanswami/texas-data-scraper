@@ -80,9 +80,18 @@ python scripts/outlet_enricher.py
 - Choose: Deduplicated file
 - Enriched data saved to: `exports/polished/`
 
+### Step 6: Get Google Places Data (Optional, v1.5.0)
+```bash
+python scripts/google_places_scraper.py
+```
+- Select: **1** (Auto-Find Place IDs) → export to `exports/place_ids/`
+- Select: **5** (Auto-Get Details) → export to `exports/places_details/`
+- Then run Data Combiner option **13** to merge with polished data
+- Final data saved to: `exports/final/`
+
 ## ✅ That's It!
 
-Your clean, enriched data is now in `exports/polished/` (or `exports/deduplicated/`) in JSON, CSV, and Excel formats!
+Your clean, enriched data is now in `exports/final/` (or `exports/polished/` or `exports/deduplicated/`) in JSON, CSV, and Excel formats!
 
 ## 📊 What You Get
 

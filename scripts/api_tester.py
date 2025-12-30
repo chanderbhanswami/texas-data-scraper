@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 API Endpoint Tester
-Test all Socrata and Comptroller API endpoints
+Test all Socrata, Comptroller, and Google Places API endpoints
 """
 import sys
 from pathlib import Path
@@ -20,7 +20,7 @@ from src.api.comptroller_client import ComptrollerClient
 from src.scrapers.socrata_scraper import SocrataScraper, BulkSocrataScraper
 from src.scrapers.comptroller_scraper import ComptrollerScraper, SmartComptrollerScraper
 from src.utils.logger import get_logger
-from config.settings import socrata_config, comptroller_config
+from config.settings import socrata_config, comptroller_config, google_places_config
 
 console = Console()
 logger = get_logger(__name__)
@@ -56,6 +56,11 @@ class APITester:
         console.print("")
         console.print(Panel("GPU & SCRAPER WRAPPER TESTS", style="bold magenta"))
         self.test_gpu_and_scrapers()
+        
+        # Test Google Places API (v1.5.0)
+        console.print("")
+        console.print(Panel("GOOGLE PLACES API TESTS (v1.5.0)", style="bold yellow"))
+        self.test_google_places_api()
         
         # Show summary
         self.show_summary()
@@ -407,6 +412,19 @@ class APITester:
         for test_name, test_func in tests:
             self._run_test(test_name, test_func, "GPU/Scraper")
     
+    def test_google_places_api(self):
+        """Test Google Places API endpoints (v1.5.0)"""
+        tests = [
+            ("API Key Configured", self.test_google_places_api_key),
+            ("Config Settings", self.test_google_places_config),
+            ("Client Initialization", self.test_google_places_client_init),
+            ("Search Query Building", self.test_google_places_query_building),
+            ("Scraper Initialization", self.test_google_places_scraper_init),
+        ]
+        
+        for test_name, test_func in tests:
+            self._run_test(test_name, test_func, "Google Places")
+    
     def test_gpu_availability(self) -> dict:
         """Test GPU availability"""
         try:
@@ -491,6 +509,113 @@ class APITester:
                 'error': str(e)
             }
     
+    # Google Places Tests (v1.5.0)
+    
+    def test_google_places_api_key(self) -> dict:
+        """Test Google Places API key configuration"""
+        try:
+            if google_places_config.has_api_key:
+                return {
+                    'success': True,
+                    'message': f'API key configured (billing={google_places_config.BILLING_ENABLED})'
+                }
+            else:
+                return {
+                    'success': True,
+                    'message': 'No API key configured (skip live tests)'
+                }
+        except Exception as e:
+            return {
+                'success': False,
+                'error': str(e)
+            }
+    
+    def test_google_places_config(self) -> dict:
+        """Test Google Places configuration settings"""
+        try:
+            rate_limit = google_places_config.rate_limit
+            concurrent = google_places_config.CONCURRENT_REQUESTS
+            chunk_size = google_places_config.CHUNK_SIZE
+            
+            return {
+                'success': True,
+                'message': f'rate_limit={rate_limit}, concurrent={concurrent}, chunk_size={chunk_size}'
+            }
+        except Exception as e:
+            return {
+                'success': False,
+                'error': str(e)
+            }
+    
+    def test_google_places_client_init(self) -> dict:
+        """Test Google Places client initialization"""
+        try:
+            from src.api.google_places_client import GooglePlacesClient
+            
+            client = GooglePlacesClient()
+            
+            return {
+                'success': True,
+                'message': 'Client initialized successfully'
+            }
+        except Exception as e:
+            return {
+                'success': False,
+                'error': str(e)
+            }
+    
+    def test_google_places_query_building(self) -> dict:
+        """Test Google Places search query building"""
+        try:
+            from src.api.google_places_client import GooglePlacesClient
+            
+            client = GooglePlacesClient()
+            
+            # Sample record
+            record = {
+                'taxpayer_name': 'TEST COMPANY LLC',
+                'location_address': '100 Main St',
+                'location_city': 'Austin',
+                'location_state': 'TX',
+                'location_zip_code': '78701'
+            }
+            
+            query = client.build_search_query(record)
+            
+            if 'TEST COMPANY LLC' in query and 'Austin' in query:
+                return {
+                    'success': True,
+                    'message': f'Query built: "{query[:50]}..."'
+                }
+            else:
+                return {
+                    'success': False,
+                    'error': 'Query missing expected components'
+                }
+        except Exception as e:
+            return {
+                'success': False,
+                'error': str(e)
+            }
+    
+    def test_google_places_scraper_init(self) -> dict:
+        """Test Google Places scraper initialization"""
+        try:
+            from src.scrapers.google_places_scraper import GooglePlacesScraper
+            
+            scraper = GooglePlacesScraper(use_async=False, use_gpu=False)
+            stats = scraper.get_scraper_stats()
+            
+            return {
+                'success': True,
+                'message': f'Scraper initialized (client_type={stats["client_type"]})'
+            }
+        except Exception as e:
+            return {
+                'success': False,
+                'error': str(e)
+            }
+    
     def show_summary(self):
         """Show test summary"""
         console.print("\n" + "="*70, style="bold")
@@ -506,10 +631,12 @@ class APITester:
         socrata_tests = [r for r in self.test_results if r['api'] == 'Socrata']
         comptroller_tests = [r for r in self.test_results if r['api'] == 'Comptroller']
         gpu_tests = [r for r in self.test_results if r['api'] == 'GPU/Scraper']
+        google_tests = [r for r in self.test_results if r['api'] == 'Google Places']
         
         socrata_passed = sum(1 for r in socrata_tests if r['success'])
         comptroller_passed = sum(1 for r in comptroller_tests if r['success'])
         gpu_passed = sum(1 for r in gpu_tests if r['success'])
+        google_passed = sum(1 for r in google_tests if r['success'])
         
         # Create summary table
         table = Table(title="Test Results", show_header=True)
@@ -541,6 +668,14 @@ class APITester:
             str(gpu_passed),
             str(len(gpu_tests) - gpu_passed),
             f"{gpu_passed/len(gpu_tests)*100:.1f}%" if gpu_tests else "N/A"
+        )
+        
+        table.add_row(
+            "Google Places",
+            str(len(google_tests)),
+            str(google_passed),
+            str(len(google_tests) - google_passed),
+            f"{google_passed/len(google_tests)*100:.1f}%" if google_tests else "N/A"
         )
         
         table.add_row(

@@ -23,11 +23,17 @@ def create_directory_structure():
         'exports/combined',
         'exports/deduplicated',
         'exports/polished',  # v1.4.0: Outlet-enriched data
+        'exports/place_ids',  # v1.5.0: Google Places IDs
+        'exports/places_details',  # v1.5.0: Google Places details
+        'exports/final',  # v1.5.0: Final combined data
         'exports/batch',
         'logs',
         '.cache',
         '.cache/progress',  # v1.1.0: Progress checkpoints
-        '.cache/comptroller'  # v1.4.0: Comptroller API cache
+        '.cache/comptroller',  # v1.4.0: Comptroller API cache
+        '.cache/google_places',  # v1.5.0: Google Places API cache
+        '.cache/google_places/place_ids',
+        '.cache/google_places/details'
     ]
     
     print("Creating directory structure...")
@@ -69,11 +75,17 @@ def create_gitkeep_files():
         'exports/combined',
         'exports/deduplicated',
         'exports/polished',  # v1.4.0
+        'exports/place_ids',  # v1.5.0
+        'exports/places_details',  # v1.5.0
+        'exports/final',  # v1.5.0
         'exports/batch',
         'logs',
         '.cache',
         '.cache/progress',
-        '.cache/comptroller'  # v1.4.0
+        '.cache/comptroller',  # v1.4.0
+        '.cache/google_places',  # v1.5.0
+        '.cache/google_places/place_ids',
+        '.cache/google_places/details'
     ]
     
     print("\nCreating .gitkeep files...")

@@ -22,7 +22,7 @@ def show_main_menu():
     title = """
     ╔═══════════════════════════════════════════════════════════╗
     ║                                                           ║
-    ║           TEXAS GOVERNMENT DATA SCRAPER v1.4             ║
+    ║           TEXAS GOVERNMENT DATA SCRAPER v1.5             ║
     ║                                                           ║
     ║              Comprehensive Data Extraction Tool          ║
     ║                                                           ║
@@ -41,14 +41,15 @@ def show_main_menu():
     [cyan]4[/cyan]. Data Combiner            - Merge multiple sources
     [cyan]5[/cyan]. Deduplicator             - Remove duplicates
     [cyan]6[/cyan]. Outlet Enricher          - Add outlet data to records
+    [cyan]7[/cyan]. Google Places Scraper    - Get business details from Google
     
     [bold yellow]UTILITIES[/bold yellow]
-    [cyan]7[/cyan]. API Tester               - Test API endpoints
-    [cyan]8[/cyan]. Configuration             - View/edit settings
+    [cyan]8[/cyan]. API Tester               - Test API endpoints
+    [cyan]9[/cyan]. Configuration            - View/edit settings
     
     [bold magenta]WORKFLOWS[/bold magenta]
-    [cyan]9[/cyan]. Quick Start Workflow     - Guided setup
-    [cyan]10[/cyan]. Full Pipeline            - Complete automation
+    [cyan]10[/cyan]. Quick Start Workflow    - Guided setup
+    [cyan]11[/cyan]. Full Pipeline           - Complete automation
     
     [bold red]0[/bold red]. Exit
     """
@@ -107,6 +108,15 @@ def run_outlet_enricher():
     
     from scripts.outlet_enricher import OutletEnricherCLI
     cli = OutletEnricherCLI()
+    cli.run()
+
+
+def run_google_places_scraper():
+    """Run Google Places scraper"""
+    console.print("\n[bold cyan]Launching Google Places Scraper...[/bold cyan]\n")
+    
+    from scripts.google_places_scraper import GooglePlacesScraperCLI
+    cli = GooglePlacesScraperCLI()
     cli.run()
 
 
@@ -314,15 +324,18 @@ def main():
                 run_outlet_enricher()
                 
             elif choice == "7":
-                run_api_tester()
+                run_google_places_scraper()
                 
             elif choice == "8":
-                show_configuration()
+                run_api_tester()
                 
             elif choice == "9":
-                run_quick_start()
+                show_configuration()
                 
             elif choice == "10":
+                run_quick_start()
+                
+            elif choice == "11":
                 run_full_pipeline()
                 
         except KeyboardInterrupt:

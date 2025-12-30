@@ -192,5 +192,97 @@ class TestScraperIntegration:
         assert len(valid_ids) == 2
 
 
+class TestGooglePlacesScraper:
+    """Test Google Places scraper module (v1.5.0)"""
+    
+    @pytest.fixture
+    def scraper(self):
+        """Create scraper instance"""
+        from unittest.mock import patch, Mock
+        mock_config = Mock()
+        mock_config.API_KEY = 'test_key'
+        mock_config.FIND_PLACE_ENDPOINT = 'https://test.com/find'
+        mock_config.PLACE_DETAILS_ENDPOINT = 'https://test.com/details'
+        mock_config.rate_limit = 600
+        mock_config.CONCURRENT_REQUESTS = 5
+        mock_config.CHUNK_SIZE = 50
+        mock_config.REQUEST_DELAY = 0.1
+        
+        with patch('src.scrapers.google_places_scraper.google_places_config', mock_config):
+            with patch('src.api.google_places_client.google_places_config', mock_config):
+                from src.scrapers.google_places_scraper import GooglePlacesScraper
+                return GooglePlacesScraper(use_async=False, use_gpu=False)
+    
+    def test_scraper_initialization(self, scraper):
+        """Test scraper initializes correctly"""
+        assert scraper is not None
+        assert scraper.client is not None
+    
+    def test_scraper_stats(self, scraper):
+        """Test statistics retrieval"""
+        stats = scraper.get_scraper_stats()
+        
+        assert 'client_type' in stats
+        assert 'gpu_enabled' in stats
+        assert stats['client_type'] == 'sync'
+    
+    def test_search_query_building(self, scraper):
+        """Test search query construction"""
+        record = {
+            'taxpayer_name': 'Test Corp',
+            'location_address': '100 Main St',
+            'location_city': 'Austin',
+            'location_state': 'TX',
+            'location_zip_code': '78701'
+        }
+        
+        query = scraper.client.build_search_query(record)
+        
+        assert 'Test Corp' in query
+        assert 'Austin' in query
+
+
+class TestSmartGooglePlacesScraper:
+    """Test smart Google Places scraper with caching (v1.5.0)"""
+    
+    @pytest.fixture
+    def scraper(self):
+        """Create smart scraper instance"""
+        from unittest.mock import patch, Mock
+        import tempfile
+        
+        mock_config = Mock()
+        mock_config.API_KEY = 'test_key'
+        mock_config.FIND_PLACE_ENDPOINT = 'https://test.com/find'
+        mock_config.PLACE_DETAILS_ENDPOINT = 'https://test.com/details'
+        mock_config.rate_limit = 600
+        mock_config.CONCURRENT_REQUESTS = 5
+        mock_config.CHUNK_SIZE = 50
+        mock_config.REQUEST_DELAY = 0.1
+        
+        with patch('src.scrapers.google_places_scraper.google_places_config', mock_config):
+            with patch('src.api.google_places_client.google_places_config', mock_config):
+                from src.scrapers.google_places_scraper import SmartGooglePlacesScraper
+                return SmartGooglePlacesScraper(
+                    cache_dir=tempfile.mkdtemp(),
+                    use_async=False,
+                    use_gpu=False
+                )
+    
+    def test_smart_scraper_initialization(self, scraper):
+        """Test smart scraper initializes"""
+        assert scraper is not None
+        assert scraper.cache_dir is not None
+    
+    def test_cache_key_generation(self, scraper):
+        """Test cache key generation"""
+        record = {'taxpayer_id': '123', 'taxpayer_name': 'Test'}
+        
+        # Test that cache key is based on taxpayer_id
+        cache_key = scraper._get_cache_key(record, 'place_ids')
+        
+        assert '123' in cache_key
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

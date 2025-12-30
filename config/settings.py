@@ -25,8 +25,13 @@ COMPTROLLER_EXPORT_DIR = EXPORT_DIR / 'comptroller'
 COMBINED_EXPORT_DIR = EXPORT_DIR / 'combined'
 DEDUPLICATED_EXPORT_DIR = EXPORT_DIR / 'deduplicated'
 POLISHED_EXPORT_DIR = EXPORT_DIR / 'polished'
+PLACE_IDS_EXPORT_DIR = EXPORT_DIR / 'place_ids'
+PLACES_DETAILS_EXPORT_DIR = EXPORT_DIR / 'places_details'
+FINAL_EXPORT_DIR = EXPORT_DIR / 'final'
 
-for directory in [SOCRATA_EXPORT_DIR, COMPTROLLER_EXPORT_DIR, COMBINED_EXPORT_DIR, DEDUPLICATED_EXPORT_DIR, POLISHED_EXPORT_DIR]:
+for directory in [SOCRATA_EXPORT_DIR, COMPTROLLER_EXPORT_DIR, COMBINED_EXPORT_DIR, 
+                  DEDUPLICATED_EXPORT_DIR, POLISHED_EXPORT_DIR, PLACE_IDS_EXPORT_DIR,
+                  PLACES_DETAILS_EXPORT_DIR, FINAL_EXPORT_DIR]:
     directory.mkdir(exist_ok=True)
 
 
@@ -77,6 +82,39 @@ class ComptrollerConfig:
     CONCURRENT_REQUESTS = int(os.getenv('COMPTROLLER_CONCURRENT_REQUESTS', 2))
     CHUNK_SIZE = int(os.getenv('COMPTROLLER_CHUNK_SIZE', 25))
     REQUEST_DELAY = float(os.getenv('COMPTROLLER_REQUEST_DELAY', 1.5))
+    
+    @property
+    def has_api_key(self) -> bool:
+        """Check if API key is configured"""
+        return bool(self.API_KEY)
+
+
+class GooglePlacesConfig:
+    """Google Places API Configuration"""
+    BASE_URL = os.getenv('GOOGLE_PLACES_BASE_URL', 
+                         'https://maps.googleapis.com/maps/api/place')
+    API_KEY = os.getenv('GOOGLE_PLACES_API_KEY', '')
+    
+    # Endpoints
+    FIND_PLACE_ENDPOINT = f"{BASE_URL}/findplacefromtext/json"
+    PLACE_DETAILS_ENDPOINT = f"{BASE_URL}/details/json"
+    
+    # Billing mode (higher limits with billing enabled)
+    BILLING_ENABLED = os.getenv('GOOGLE_PLACES_BILLING', 'false').lower() == 'true'
+    
+    # Rate limits (queries per minute)
+    RATE_LIMIT_STANDARD = int(os.getenv('GOOGLE_PLACES_RATE_LIMIT_STANDARD', 600))
+    RATE_LIMIT_BILLING = int(os.getenv('GOOGLE_PLACES_RATE_LIMIT_BILLING', 6000))
+    
+    # Batch processing settings
+    CONCURRENT_REQUESTS = int(os.getenv('GOOGLE_PLACES_CONCURRENT_REQUESTS', 5))
+    CHUNK_SIZE = int(os.getenv('GOOGLE_PLACES_CHUNK_SIZE', 50))
+    REQUEST_DELAY = float(os.getenv('GOOGLE_PLACES_REQUEST_DELAY', 0.1))
+    
+    @property
+    def rate_limit(self) -> int:
+        """Return appropriate rate limit based on billing status"""
+        return self.RATE_LIMIT_BILLING if self.BILLING_ENABLED else self.RATE_LIMIT_STANDARD
     
     @property
     def has_api_key(self) -> bool:
@@ -155,6 +193,7 @@ class AdvancedConfig:
 # Initialize configuration instances
 socrata_config = SocrataConfig()
 comptroller_config = ComptrollerConfig()
+google_places_config = GooglePlacesConfig()
 rate_limit_config = RateLimitConfig()
 batch_config = BatchProcessingConfig()
 gpu_config = GPUConfig()

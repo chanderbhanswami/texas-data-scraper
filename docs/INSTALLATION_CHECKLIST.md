@@ -219,8 +219,18 @@ Follow these steps to ensure proper installation:
   # Option 1 (Auto-Enrich)
   ```
 
+- [ ] Get Google Places data (v1.5.0)
+  ```bash
+  python scripts/google_places_scraper.py
+  # Option 1 (Auto-Find Place IDs)
+  # Option 5 (Auto-Get Details)
+  # Then Data Combiner Option 13 to merge
+  ```
+
 - [ ] Verify final output
   ```bash
+  ls -lh exports/final/
+  # Or if skipping Google Places:
   ls -lh exports/polished/
   # Or if skipping enricher:
   ls -lh exports/deduplicated/

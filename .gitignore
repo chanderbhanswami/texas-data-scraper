@@ -68,6 +68,18 @@ exports/polished/*.json
 exports/polished/*.csv
 exports/polished/*.xlsx
 exports/polished/*.checksum
+exports/place_ids/*.json
+exports/place_ids/*.csv
+exports/place_ids/*.xlsx
+exports/place_ids/*.checksum
+exports/places_details/*.json
+exports/places_details/*.csv
+exports/places_details/*.xlsx
+exports/places_details/*.checksum
+exports/final/*.json
+exports/final/*.csv
+exports/final/*.xlsx
+exports/final/*.checksum
 
 # Keep directory structure
 !exports/.gitkeep
@@ -76,6 +88,9 @@ exports/polished/*.checksum
 !exports/combined/.gitkeep
 !exports/deduplicated/.gitkeep
 !exports/polished/.gitkeep
+!exports/place_ids/.gitkeep
+!exports/places_details/.gitkeep
+!exports/final/.gitkeep
 
 # Logs
 logs/*.log

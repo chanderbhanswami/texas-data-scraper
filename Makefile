@@ -115,6 +115,36 @@ batch:
 	@echo "Starting batch processor..."
 	python scripts/batch_processor.py
 
+# Run outlet enricher (v1.4.0)
+outlet-enrich:
+	@echo "Starting outlet enricher..."
+	python scripts/outlet_enricher.py
+
+# Run Google Places scraper (v1.5.0)
+google-places:
+	@echo "Starting Google Places scraper..."
+	python scripts/google_places_scraper.py
+
+# Full pipeline: Socrata → Comptroller → Combine → Dedupe → Outlet → Places → Final
+full-pipeline:
+	@echo "Running full data pipeline..."
+	@echo "Step 1: Socrata"
+	@echo "  Run: python scripts/socrata_scraper.py"
+	@echo "Step 2: Comptroller"
+	@echo "  Run: python scripts/comptroller_scraper.py"
+	@echo "Step 3: Combine"
+	@echo "  Run: python scripts/data_combiner.py (Option 4 or 6)"
+	@echo "Step 4: Deduplicate"
+	@echo "  Run: python scripts/deduplicator.py (Option 4)"
+	@echo "Step 5: Outlet Enricher (v1.4.0)"
+	@echo "  Run: python scripts/outlet_enricher.py (Option 1)"
+	@echo "Step 6: Google Places (v1.5.0)"
+	@echo "  Run: python scripts/google_places_scraper.py (Options 1+5)"
+	@echo "Step 7: Final Combine (v1.5.0)"
+	@echo "  Run: python scripts/data_combiner.py (Option 13)"
+	@echo ""
+	@echo "Or use 'make run' and select Option 11 (Full Pipeline)"
+
 # View logs
 logs:
 	@echo "Viewing latest logs..."
@@ -229,6 +259,8 @@ make socrata
 make comptroller
 make combine
 make dedupe
+make outlet-enrich      # v1.4.0
+make google-places      # v1.5.0
 
 # View logs
 make logs
@@ -242,4 +274,7 @@ make clean
 
 # Run all quality checks
 make quality
+
+# Show full pipeline steps
+make full-pipeline
 ```

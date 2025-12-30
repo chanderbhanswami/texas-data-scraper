@@ -53,6 +53,9 @@ A comprehensive, production-ready toolkit for scraping and processing data from 
 - **Persistent Disk Caching**: Comptroller cache survives restarts - truly resumable (v1.4.0)
 - **Network Retry with Backoff**: Automatic recovery from internet outages (v1.4.0)
 - **Configurable Comptroller Settings**: Fine-tune concurrent requests, chunk size, delays (v1.4.0)
+- **Google Places API Integration**: Get phone, website, ratings, hours from Google (v1.5.0)
+- **Two-Step Places Workflow**: Find Place IDs → Get Place Details (v1.5.0)
+- **Final Data Combiner**: Merge Google Places with polished taxpayer data (v1.5.0)
 
 ### Data Sources
 - Franchise Tax Permit Holders
@@ -262,7 +265,35 @@ python scripts/outlet_enricher.py
 3. Choose Deduplicated file
 4. Files saved to `exports/polished/`
 
-### 6. API Endpoint Tester
+### 6. Google Places Scraper (v1.5.0)
+
+Enrich data with Google Places business information:
+
+```bash
+python scripts/google_places_scraper.py
+```
+
+**Two-Step Workflow:**
+1. **Step 1: Find Place IDs** - Search Google Places using business name + address
+2. **Step 2: Get Details** - Fetch full business info using Place IDs
+
+**Fields Extracted:**
+- `formatted_phone_number`, `international_phone_number`
+- `website`, `url` (Google Maps link)
+- `rating`, `user_ratings_total`
+- `business_status`, `types` (categories)
+- `opening_hours`, `geometry` (lat/lng)
+- `reviews`, `photos`
+
+**Example Workflow:**
+1. Select "1" for Auto-Find Place IDs (from polished data)
+2. Export to `exports/place_ids/`
+3. Continue to get details
+4. Export to `exports/places_details/`
+5. Use Data Combiner option 13 to merge with polished data
+6. Final output in `exports/final/`
+
+### 7. API Endpoint Tester
 
 Test all API endpoints:
 
@@ -284,7 +315,10 @@ texas-data-scraper/
 │
 ├── .cache/                           # Cache directory
 │   ├── progress/                     # Progress checkpoints for resume
-│   └── comptroller/                  # Comptroller API response cache (v1.4.0)
+│   ├── comptroller/                  # Comptroller API response cache (v1.4.0)
+│   └── google_places/                # Google Places API cache (v1.5.0)
+│       ├── place_ids/                # Cached place ID lookups
+│       └── details/                  # Cached place details
 │
 ├── config/
 │   ├── __init__.py                   # Config package initialization
@@ -303,6 +337,9 @@ texas-data-scraper/
 │   ├── comptroller/                  # Comptroller data exports
 │   ├── deduplicated/                 # Deduplicated data exports
 │   ├── polished/                     # Outlet-enriched data exports (v1.4.0)
+│   ├── place_ids/                    # Google Place IDs exports (v1.5.0)
+│   ├── places_details/               # Google Places details exports (v1.5.0)
+│   ├── final/                        # Final combined data exports (v1.5.0)
 │   └── socrata/                      # Socrata data exports
 │
 ├── logs/                             # Log files directory
@@ -313,6 +350,7 @@ texas-data-scraper/
 │   ├── comptroller_scraper.py        # Main Comptroller scraper CLI
 │   ├── data_combiner.py              # Data combination CLI
 │   ├── deduplicator.py               # Deduplication CLI
+│   ├── google_places_scraper.py      # Google Places API CLI (v1.5.0)
 │   ├── outlet_enricher.py            # Outlet data enrichment CLI (v1.4.0)
 │   └── socrata_scraper.py            # Main Socrata scraper CLI
 │
@@ -322,6 +360,7 @@ texas-data-scraper/
 │   ├── api/
 │   │   ├── __init__.py               # API package initialization
 │   │   ├── comptroller_client.py     # Comptroller API client
+│   │   ├── google_places_client.py   # Google Places API client (v1.5.0)
 │   │   ├── rate_limiter.py           # Rate limiting logic
 │   │   └── socrata_client.py         # Socrata API client
 │   │
@@ -339,6 +378,7 @@ texas-data-scraper/
 │   ├── scrapers/
 │   │   ├── __init__.py               # Scrapers package initialization
 │   │   ├── comptroller_scraper.py    # Comptroller data scraper
+│   │   ├── google_places_scraper.py  # Google Places scraper (v1.5.0)
 │   │   ├── gpu_accelerator.py        # GPU acceleration utilities
 │   │   └── socrata_scraper.py        # Socrata data scraper
 │   │
@@ -353,6 +393,7 @@ texas-data-scraper/
 ├── tests/
 │   ├── __init__.py                   # Tests package initialization
 │   ├── test_comptroller_api.py       # Comptroller API tests
+│   ├── test_google_places_api.py     # Google Places API tests
 │   ├── test_integration.py           # Integration tests
 │   ├── test_processors.py            # Processor tests
 │   ├── test_scrapers.py              # Scraper tests
@@ -583,7 +624,7 @@ Socrata API → Raw Data → Comptroller Enrichment → Merge → Deduplicate �
 
 See our [project roadmap](https://github.com/chanderbhanswami/texas-data-scraper/projects) for upcoming features.
 
-### Phase 1: Core Data Pipeline
+### Phase 1.0: Core Data Pipeline ✅
 - [x] Socrata Open Data Portal integration
 - [x] Texas Comptroller API integration
 - [x] GPU acceleration with CUDA
@@ -591,19 +632,42 @@ See our [project roadmap](https://github.com/chanderbhanswami/texas-data-scraper
 - [x] Data deduplication
 - [x] Interactive CLI menus
 
-### Phase 1.1: Resilience & Reliability (NEW)
+### Phase 1.1: Resilience & Reliability (v1.1.0) ✅
 - [x] Progress persistence (resume interrupted downloads)
-- [x] Export checksum verification
+- [x] Export checksum verification (SHA-256)
 - [x] Data validation and quality reports
 - [x] GPU-accelerated merging and deduplication
+- [x] Scraper wrappers with `scrape_with_progress()`
 
-### Phase 2: Business Enrichment (Planned)
-- [ ] Google Places API integration
+### Phase 1.2: Smart Data Handling (v1.2.0) ✅
+- [x] Smart field detection (case-insensitive ID matching)
+- [x] Semantic field normalization (`zipcode` → `zip_code`)
+- [x] Global auto-deduplication (skips already-scraped records)
+- [x] Append-to-existing export mode
+- [x] Cross-dataset deduplication
+
+### Phase 1.3: Bulk Operations & Master Combine (v1.3.0) ✅
+- [x] Process ALL Socrata files through Comptroller at once
+- [x] Separate Comptroller files per dataset (source traceability)
+- [x] Master Combine All (full pipeline automation)
+- [x] 9 Manual Combine Options (granular control)
+- [x] Smart format detection (JSON-only for bulk)
+
+### Phase 1.4: Outlet Enrichment & Resilience (v1.4.0) ✅
+- [x] Outlet Data Enricher (extract outlets from duplicates)
+- [x] Persistent disk caching (survives restarts)
+- [x] Network retry with exponential backoff
+- [x] Configurable Comptroller API settings
+- [x] New `exports/polished/` directory
+
+### Phase 2: Business Enrichment (v1.5.0) ✅
+- [x] Google Places API integration
   - Business phone numbers
   - Business websites
-  - Business addresses verification
+  - Ratings and reviews
   - Operating hours
-- [ ] Clearbit API integration
+  - Business status
+- [ ] Clearbit API integration (Planned)
   - Company emails
   - Social media profiles
   - Company logo and branding

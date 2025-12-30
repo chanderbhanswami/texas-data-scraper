@@ -21,7 +21,10 @@ from src.utils.logger import get_logger
 from config.settings import (
     SOCRATA_EXPORT_DIR,
     COMPTROLLER_EXPORT_DIR,
-    COMBINED_EXPORT_DIR
+    COMBINED_EXPORT_DIR,
+    POLISHED_EXPORT_DIR,
+    PLACES_DETAILS_EXPORT_DIR,
+    FINAL_EXPORT_DIR
 )
 
 # Import utility modules
@@ -93,6 +96,9 @@ class DataCombinerCLI:
         table.add_row("", "")
         # Manual granular combine options
         table.add_row("12", "📂 Manual Combine Options (9 granular options)")
+        table.add_row("", "")
+        # Google Places combine option
+        table.add_row("13", "🌍 Combine Google Places with Polished Data")
         table.add_row("", "")
         table.add_row("0", "Exit")
         
@@ -903,6 +909,148 @@ class DataCombinerCLI:
         except Exception as e:
             console.print(f"Export error: {e}", style="red bold")
     
+    def combine_google_places_with_polished(self):
+        """
+        Combine Google Places details with Polished data
+        
+        - Matches by taxpayer_id
+        - Adds places details to polished records
+        - Records without places details remain unchanged
+        - Exports to exports/final/
+        """
+        console.print("\n[bold cyan]🌍 Combine Google Places with Polished Data[/bold cyan]")
+        console.print("[dim]Merge Google Places details into polished taxpayer records[/dim]\n")
+        
+        # Step 1: Select polished file
+        console.print("[bold]Step 1: Select Polished Data File[/bold]")
+        polished_file = self.show_file_selector(POLISHED_EXPORT_DIR, "*.json", "Polished JSON")
+        if not polished_file:
+            console.print("[yellow]No file selected[/yellow]")
+            return
+        
+        # Step 2: Select places details file
+        console.print("\n[bold]Step 2: Select Google Places Details File[/bold]")
+        places_file = self.show_file_selector(PLACES_DETAILS_EXPORT_DIR, "*.json", "Places Details JSON")
+        if not places_file:
+            console.print("[yellow]No file selected[/yellow]")
+            return
+        
+        # Load data
+        console.print(f"\n[dim]Loading {polished_file.name}...[/dim]")
+        import json
+        try:
+            with open(polished_file, 'r', encoding='utf-8') as f:
+                polished_data = json.load(f)
+            if isinstance(polished_data, dict) and 'data' in polished_data:
+                polished_data = polished_data['data']
+        except Exception as e:
+            console.print(f"[red]Error loading polished file: {e}[/red]")
+            return
+        
+        console.print(f"[dim]Loading {places_file.name}...[/dim]")
+        try:
+            with open(places_file, 'r', encoding='utf-8') as f:
+                places_data = json.load(f)
+            if isinstance(places_data, dict) and 'data' in places_data:
+                places_data = places_data['data']
+        except Exception as e:
+            console.print(f"[red]Error loading places file: {e}[/red]")
+            return
+        
+        console.print(f"\n[green]✓ Loaded {len(polished_data):,} polished records[/green]")
+        console.print(f"[green]✓ Loaded {len(places_data):,} places details records[/green]")
+        
+        # Build places lookup by taxpayer_id
+        console.print("\n[dim]Building places lookup index...[/dim]")
+        places_lookup = {}
+        for place in places_data:
+            taxpayer_id = place.get('taxpayer_id')
+            if taxpayer_id and place.get('details_status') == 'success':
+                places_lookup[str(taxpayer_id)] = place
+        
+        console.print(f"[green]✓ {len(places_lookup):,} valid places details indexed[/green]")
+        
+        # Merge data
+        console.print("\n[dim]Combining data...[/dim]")
+        combined_data = []
+        enriched_count = 0
+        unchanged_count = 0
+        
+        # Fields to add from places details
+        places_fields = [
+            'name', 'formatted_address', 'formatted_phone_number',
+            'international_phone_number', 'website', 'url', 'rating',
+            'user_ratings_total', 'business_status', 'types',
+            'opening_hours', 'geometry', 'vicinity', 'price_level',
+            'reviews', 'photos', 'place_id'
+        ]
+        
+        for record in polished_data:
+            # Get taxpayer ID from record
+            taxpayer_id = record.get('taxpayer_number') or record.get('taxpayer_id')
+            
+            # Create a copy of the record
+            combined_record = record.copy()
+            
+            # Check if we have places data for this taxpayer
+            if taxpayer_id and str(taxpayer_id) in places_lookup:
+                places_info = places_lookup[str(taxpayer_id)]
+                
+                # Add places fields with 'google_' prefix to avoid conflicts
+                for field in places_fields:
+                    if field in places_info:
+                        combined_record[f'google_{field}'] = places_info[field]
+                
+                combined_record['google_places_enriched'] = True
+                enriched_count += 1
+            else:
+                combined_record['google_places_enriched'] = False
+                unchanged_count += 1
+            
+            combined_data.append(combined_record)
+        
+        # Show results
+        console.print("\n")
+        table = Table(title="Combination Results", show_header=True)
+        table.add_column("Metric", style="cyan")
+        table.add_column("Count", style="green", justify="right")
+        
+        table.add_row("Total Polished Records", f"{len(polished_data):,}")
+        table.add_row("Records Enriched with Places", f"{enriched_count:,}")
+        table.add_row("Records Unchanged", f"{unchanged_count:,}")
+        table.add_row("Total Combined Records", f"{len(combined_data):,}")
+        
+        console.print(table)
+        
+        # Store for stats
+        self.last_combined_data = combined_data
+        
+        # Export
+        if Confirm.ask("\nExport combined data to exports/final/?", default=True):
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            base_filename = f"final_combined_{timestamp}"
+            
+            # Create exporter for final directory
+            final_exporter = FileExporter(FINAL_EXPORT_DIR)
+            
+            console.print(f"\n[bold]Exporting {len(combined_data):,} records to exports/final/...[/bold]")
+            
+            try:
+                json_path = final_exporter.export_json(combined_data, f"{base_filename}.json")
+                console.print(f"[green]✓ Exported JSON: {json_path.name}[/green]")
+                
+                csv_path = final_exporter.export_csv(combined_data, f"{base_filename}.csv")
+                console.print(f"[green]✓ Exported CSV: {csv_path.name}[/green]")
+                
+                excel_path = final_exporter.export_excel(combined_data, f"{base_filename}.xlsx")
+                console.print(f"[green]✓ Exported Excel: {excel_path.name}[/green]")
+                
+                console.print(f"\n[bold green]✓ Successfully exported {len(combined_data):,} records to exports/final/[/bold green]")
+                
+            except Exception as e:
+                console.print(f"[red]Export error: {e}[/red]")
+                logger.error(f"Export failed: {e}")
+    
     def run(self):
         """Main CLI loop"""
         self.show_banner()
@@ -954,6 +1102,9 @@ class DataCombinerCLI:
                     
                 elif choice == "12":
                     self.handle_manual_combine()
+                    
+                elif choice == "13":
+                    self.combine_google_places_with_polished()
                     
                 else:
                     console.print("\nInvalid option", style="red")
