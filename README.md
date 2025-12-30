@@ -11,7 +11,7 @@
 [![Maintenance](https://img.shields.io/badge/Maintained%3F-yes-green?style=for-the-badge)](https://github.com/chanderbhanswami/texas-data-scraper/graphs/commit-activity)
 
 <p align="center">
-  <strong>A comprehensive, production-ready toolkit for scraping and processing data from Texas government APIs</strong>
+  <strong>A comprehensive, production-ready toolkit for scraping and processing data from Texas government APIs & Google Places API</strong>
 </p>
 
 <p align="center">
@@ -27,7 +27,7 @@
 
 </div>
 
-A comprehensive, production-ready toolkit for scraping and processing data from Texas government APIs including the Socrata Open Data Portal and Texas Comptroller API. Features GPU acceleration (CUDA/cuDNN), intelligent data merging, and automated deduplication.
+A comprehensive, production-ready toolkit for scraping and processing data from Texas government APIs including the Socrata Open Data Portal and Texas Comptroller API. Features GPU acceleration (CUDA/cuDNN), intelligent data merging, and automated deduplication and precise business information through Google Places API.
 
 ## Features
 
