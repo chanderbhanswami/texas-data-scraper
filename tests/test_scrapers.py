@@ -193,7 +193,7 @@ class TestScraperIntegration:
 
 
 class TestGooglePlacesScraper:
-    """Test Google Places scraper module (v1.5.0)"""
+    """Test Google Places scraper module (v1.5.0 - New API v1)"""
     
     @pytest.fixture
     def scraper(self):
@@ -201,8 +201,9 @@ class TestGooglePlacesScraper:
         from unittest.mock import patch, Mock
         mock_config = Mock()
         mock_config.API_KEY = 'test_key'
-        mock_config.FIND_PLACE_ENDPOINT = 'https://test.com/find'
-        mock_config.PLACE_DETAILS_ENDPOINT = 'https://test.com/details'
+        mock_config.BASE_URL = 'https://places.googleapis.com/v1'
+        mock_config.TEXT_SEARCH_ENDPOINT = 'https://places.googleapis.com/v1/places:searchText'
+        mock_config.PLACE_DETAILS_ENDPOINT = 'https://places.googleapis.com/v1/places'
         mock_config.rate_limit = 600
         mock_config.CONCURRENT_REQUESTS = 5
         mock_config.CHUNK_SIZE = 50
@@ -219,12 +220,14 @@ class TestGooglePlacesScraper:
         assert scraper.client is not None
     
     def test_scraper_stats(self, scraper):
-        """Test statistics retrieval"""
+        """Test statistics retrieval includes API version"""
         stats = scraper.get_scraper_stats()
         
         assert 'client_type' in stats
         assert 'gpu_enabled' in stats
+        assert 'api_version' in stats
         assert stats['client_type'] == 'sync'
+        assert 'v1' in stats['api_version']
     
     def test_search_query_building(self, scraper):
         """Test search query construction"""
@@ -243,7 +246,7 @@ class TestGooglePlacesScraper:
 
 
 class TestSmartGooglePlacesScraper:
-    """Test smart Google Places scraper with caching (v1.5.0)"""
+    """Test smart Google Places scraper with caching (v1.5.0 - New API v1)"""
     
     @pytest.fixture
     def scraper(self):
@@ -253,35 +256,33 @@ class TestSmartGooglePlacesScraper:
         
         mock_config = Mock()
         mock_config.API_KEY = 'test_key'
-        mock_config.FIND_PLACE_ENDPOINT = 'https://test.com/find'
-        mock_config.PLACE_DETAILS_ENDPOINT = 'https://test.com/details'
+        mock_config.BASE_URL = 'https://places.googleapis.com/v1'
+        mock_config.TEXT_SEARCH_ENDPOINT = 'https://places.googleapis.com/v1/places:searchText'
+        mock_config.PLACE_DETAILS_ENDPOINT = 'https://places.googleapis.com/v1/places'
         mock_config.rate_limit = 600
         mock_config.CONCURRENT_REQUESTS = 5
         mock_config.CHUNK_SIZE = 50
         mock_config.REQUEST_DELAY = 0.1
         
-        with patch('src.scrapers.google_places_scraper.google_places_config', mock_config):
-            with patch('src.api.google_places_client.google_places_config', mock_config):
-                from src.scrapers.google_places_scraper import SmartGooglePlacesScraper
-                return SmartGooglePlacesScraper(
-                    cache_dir=tempfile.mkdtemp(),
-                    use_async=False,
-                    use_gpu=False
-                )
+        # Also mock CACHE_DIR
+        with patch('src.scrapers.google_places_scraper.CACHE_DIR', Path(tempfile.mkdtemp())):
+            with patch('src.scrapers.google_places_scraper.google_places_config', mock_config):
+                with patch('src.api.google_places_client.google_places_config', mock_config):
+                    from src.scrapers.google_places_scraper import SmartGooglePlacesScraper
+                    return SmartGooglePlacesScraper()
     
     def test_smart_scraper_initialization(self, scraper):
         """Test smart scraper initializes"""
         assert scraper is not None
         assert scraper.cache_dir is not None
     
-    def test_cache_key_generation(self, scraper):
-        """Test cache key generation"""
-        record = {'taxpayer_id': '123', 'taxpayer_name': 'Test'}
+    def test_cache_stats(self, scraper):
+        """Test cache statistics retrieval"""
+        stats = scraper.get_cache_stats()
         
-        # Test that cache key is based on taxpayer_id
-        cache_key = scraper._get_cache_key(record, 'place_ids')
-        
-        assert '123' in cache_key
+        assert 'place_ids_cached' in stats
+        assert 'details_cached' in stats
+        assert 'cache_directory' in stats
 
 
 if __name__ == "__main__":

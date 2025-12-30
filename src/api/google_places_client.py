@@ -1,11 +1,12 @@
 """
-Google Places API Client for Business Data Enrichment
+Google Places API Client (New API v1) for Business Data Enrichment
 Sync and Async clients with rate limiting
+Uses the new Places API endpoints (places.googleapis.com/v1)
 """
 import requests
 import asyncio
 import aiohttp
-import urllib.parse
+import json
 from typing import List, Dict, Optional, Any
 from src.api.rate_limiter import RateLimiter, AsyncRateLimiter, BackoffRetry
 from src.utils.logger import get_logger
@@ -13,29 +14,32 @@ from config.settings import google_places_config, rate_limit_config, advanced_co
 
 logger = get_logger(__name__)
 
-# Default fields to request from Place Details API
+# Default fields to request from Place Details API (new API field names)
 DEFAULT_PLACE_DETAILS_FIELDS = [
-    'name',
-    'formatted_address',
-    'formatted_phone_number',
-    'international_phone_number',
-    'website',
-    'url',
+    'id',
+    'displayName',
+    'formattedAddress',
+    'nationalPhoneNumber',
+    'internationalPhoneNumber',
+    'websiteUri',
+    'googleMapsUri',
     'rating',
-    'user_ratings_total',
-    'business_status',
+    'userRatingCount',
+    'businessStatus',
     'types',
-    'opening_hours',
-    'geometry',
-    'vicinity',
-    'price_level',
+    'regularOpeningHours',
+    'location',
+    'priceLevel',
     'reviews',
     'photos'
 ]
 
+# Minimal fields for text search (step 1 - just need place ID)
+TEXT_SEARCH_FIELDS = ['places.id']
+
 
 class GooglePlacesClient:
-    """Sync client for Google Places API"""
+    """Sync client for Google Places API (New API v1)"""
     
     def __init__(self):
         self.base_url = google_places_config.BASE_URL
@@ -43,26 +47,80 @@ class GooglePlacesClient:
         self.rate_limiter = RateLimiter(
             requests_per_minute=google_places_config.rate_limit
         )
+        self.session = requests.Session()
         
         if not self.api_key:
             logger.warning("Google Places API key not configured")
     
-    def _get_params(self, **kwargs) -> Dict:
-        """Build request parameters with API key"""
-        params = {'key': self.api_key}
-        params.update(kwargs)
-        return params
+    @property
+    def default_fields(self) -> List[str]:
+        """Return default fields for place details"""
+        return DEFAULT_PLACE_DETAILS_FIELDS
+    
+    def _get_headers(self, field_mask: str = None) -> Dict:
+        """Build request headers with API key and field mask"""
+        headers = {
+            'Content-Type': 'application/json',
+            'X-Goog-Api-Key': self.api_key
+        }
+        if field_mask:
+            headers['X-Goog-FieldMask'] = field_mask
+        return headers
+    
+    def build_search_query(self, record: Dict) -> str:
+        """
+        Build search query from record data
+        
+        Args:
+            record: Record with business info
+            
+        Returns:
+            Search query string
+        """
+        # Extract fields from various data formats
+        business_name = (
+            record.get('taxpayer_name', '') or 
+            record.get('socrata_business_name', '') or
+            record.get('business_name', '')
+        )
+        address = (
+            record.get('location_address', '') or
+            record.get('taxpayer_address', '') or
+            record.get('socrata_taxpayer_address', '')
+        )
+        city = (
+            record.get('location_city', '') or
+            record.get('taxpayer_city', '') or
+            record.get('socrata_taxpayer_city', '')
+        )
+        state = (
+            record.get('location_state', '') or
+            record.get('taxpayer_state', '') or
+            record.get('socrata_taxpayer_state', '') or
+            'TX'
+        )
+        zip_code = (
+            record.get('location_zip_code', '') or
+            record.get('taxpayer_zip', '') or
+            record.get('socrata_taxpayer_zip', '')
+        )
+        
+        # Build query: Name + Address + City + State + Zip
+        query_parts = [p for p in [business_name, address, city, state, zip_code] if p]
+        return ' '.join(query_parts)
     
     def find_place(self, 
-                   business_name: str,
+                   query: str = None,
+                   business_name: str = '',
                    address: str = '',
                    city: str = '',
                    state: str = '',
                    zip_code: str = '') -> Optional[Dict]:
         """
-        Find a place using text search
+        Find a place using Text Search (new API)
         
         Args:
+            query: Full search query (if provided, other args ignored)
             business_name: Business name
             address: Street address
             city: City name
@@ -72,58 +130,68 @@ class GooglePlacesClient:
         Returns:
             Place info with place_id or None if not found
         """
-        # Build search query: Name + Address + City + State + Zip
-        query_parts = [business_name]
-        if address:
-            query_parts.append(address)
-        if city:
-            query_parts.append(city)
-        if state:
-            query_parts.append(state)
-        if zip_code:
-            query_parts.append(zip_code)
+        # Build search query if not provided
+        if not query:
+            query_parts = [business_name]
+            if address:
+                query_parts.append(address)
+            if city:
+                query_parts.append(city)
+            if state:
+                query_parts.append(state)
+            if zip_code:
+                query_parts.append(zip_code)
+            query = ' '.join(query_parts)
         
-        query = ' '.join(query_parts)
+        if not query.strip():
+            return None
         
         self.rate_limiter.wait()
         
         try:
-            url = f"{self.base_url}/findplacefromtext/json"
-            params = self._get_params(
-                input=query,
-                inputtype='textquery',
-                fields='place_id,name,formatted_address,business_status'
-            )
+            # New API: POST to /v1/places:searchText
+            url = f"{self.base_url}/places:searchText"
+            headers = self._get_headers(field_mask='places.id')
             
-            response = requests.get(
+            body = {
+                'textQuery': query
+            }
+            
+            response = self.session.post(
                 url, 
-                params=params,
+                json=body,
+                headers=headers,
                 timeout=rate_limit_config.REQUEST_TIMEOUT
             )
             response.raise_for_status()
             data = response.json()
             
-            if data.get('status') == 'OK' and data.get('candidates'):
-                candidate = data['candidates'][0]
+            # New API response format: { "places": [{"id": "..."}] }
+            if data.get('places') and len(data['places']) > 0:
+                place = data['places'][0]
                 return {
-                    'place_id': candidate.get('place_id'),
-                    'name': candidate.get('name'),
-                    'formatted_address': candidate.get('formatted_address'),
-                    'business_status': candidate.get('business_status'),
+                    'place_id': place.get('id'),
                     'search_query': query,
                     'match_status': 'found'
                 }
-            elif data.get('status') == 'ZERO_RESULTS':
+            else:
                 logger.debug(f"No results for query: {query}")
                 return {
                     'place_id': None,
                     'search_query': query,
                     'match_status': 'not_found'
                 }
-            else:
-                logger.warning(f"Find Place API error: {data.get('status')} - {data.get('error_message', '')}")
-                return None
                 
+        except requests.exceptions.HTTPError as e:
+            if e.response.status_code == 400:
+                logger.debug(f"Bad request for query: {query}")
+                return {
+                    'place_id': None,
+                    'search_query': query,
+                    'match_status': 'not_found'
+                }
+            logger.error(f"HTTP error finding place: {e}")
+            return None
         except requests.exceptions.RequestException as e:
             logger.error(f"Request error finding place: {e}")
             return None
@@ -132,10 +200,10 @@ class GooglePlacesClient:
                           place_id: str,
                           fields: List[str] = None) -> Optional[Dict]:
         """
-        Get detailed information for a place
+        Get detailed information for a place (new API)
         
         Args:
-            place_id: Google Place ID
+            place_id: Google Place ID (e.g., ChIJ...)
             fields: List of fields to request (uses defaults if not specified)
             
         Returns:
@@ -150,31 +218,92 @@ class GooglePlacesClient:
         self.rate_limiter.wait()
         
         try:
-            url = f"{self.base_url}/details/json"
-            params = self._get_params(
-                place_id=place_id,
-                fields=','.join(fields)
-            )
+            # New API: GET /v1/places/{place_id}
+            url = f"{self.base_url}/places/{place_id}"
+            field_mask = ','.join(fields)
+            headers = self._get_headers(field_mask=field_mask)
             
-            response = requests.get(
+            response = self.session.get(
                 url,
-                params=params,
+                headers=headers,
                 timeout=rate_limit_config.REQUEST_TIMEOUT
             )
             response.raise_for_status()
             data = response.json()
             
-            if data.get('status') == 'OK':
-                result = data.get('result', {})
-                result['place_id'] = place_id
-                return result
-            else:
-                logger.warning(f"Place Details API error: {data.get('status')} - {data.get('error_message', '')}")
-                return None
+            # Transform new API response to consistent format
+            result = self._transform_place_details(data)
+            result['place_id'] = place_id
+            return result
                 
+        except requests.exceptions.HTTPError as e:
+            if e.response.status_code == 404:
+                logger.warning(f"Place not found: {place_id}")
+            else:
+                logger.error(f"HTTP error getting place details: {e}")
+            return None
         except requests.exceptions.RequestException as e:
             logger.error(f"Request error getting place details: {e}")
             return None
+    
+    def _transform_place_details(self, data: Dict) -> Dict:
+        """
+        Transform new API response to consistent field names
+        
+        Args:
+            data: Raw API response
+            
+        Returns:
+            Transformed data with consistent field names
+        """
+        result = {}
+        
+        # Map new API fields to legacy-compatible names
+        if 'displayName' in data:
+            result['name'] = data['displayName'].get('text', '')
+        if 'formattedAddress' in data:
+            result['formatted_address'] = data['formattedAddress']
+        if 'nationalPhoneNumber' in data:
+            result['formatted_phone_number'] = data['nationalPhoneNumber']
+        if 'internationalPhoneNumber' in data:
+            result['international_phone_number'] = data['internationalPhoneNumber']
+        if 'websiteUri' in data:
+            result['website'] = data['websiteUri']
+        if 'googleMapsUri' in data:
+            result['url'] = data['googleMapsUri']
+        if 'rating' in data:
+            result['rating'] = data['rating']
+        if 'userRatingCount' in data:
+            result['user_ratings_total'] = data['userRatingCount']
+        if 'businessStatus' in data:
+            result['business_status'] = data['businessStatus']
+        if 'types' in data:
+            result['types'] = data['types']
+        if 'regularOpeningHours' in data:
+            result['opening_hours'] = data['regularOpeningHours']
+        if 'location' in data:
+            result['geometry'] = {
+                'location': {
+                    'lat': data['location'].get('latitude'),
+                    'lng': data['location'].get('longitude')
+                }
+            }
+        if 'priceLevel' in data:
+            # Map price level enum to number
+            price_map = {
+                'PRICE_LEVEL_FREE': 0,
+                'PRICE_LEVEL_INEXPENSIVE': 1,
+                'PRICE_LEVEL_MODERATE': 2,
+                'PRICE_LEVEL_EXPENSIVE': 3,
+                'PRICE_LEVEL_VERY_EXPENSIVE': 4
+            }
+            result['price_level'] = price_map.get(data['priceLevel'], None)
+        if 'reviews' in data:
+            result['reviews'] = data['reviews']
+        if 'photos' in data:
+            result['photos'] = data['photos']
+        
+        return result
     
     def batch_find_places(self, records: List[Dict]) -> List[Dict]:
         """
@@ -189,21 +318,10 @@ class GooglePlacesClient:
         results = []
         
         for record in records:
-            # Extract fields from polished data format
-            business_name = record.get('socrata_business_name', '') or record.get('taxpayer_name', '')
-            address = record.get('socrata_taxpayer_address', '') or record.get('taxpayer_address', '')
-            city = record.get('socrata_taxpayer_city', '') or record.get('taxpayer_city', '')
-            state = record.get('socrata_taxpayer_state', '') or record.get('taxpayer_state', 'TX')
-            zip_code = record.get('socrata_taxpayer_zip', '') or record.get('taxpayer_zip', '')
+            query = self.build_search_query(record)
             taxpayer_id = record.get('taxpayer_number', '') or record.get('taxpayer_id', '')
             
-            result = self.find_place(
-                business_name=business_name,
-                address=address,
-                city=city,
-                state=state,
-                zip_code=zip_code
-            )
+            result = self.find_place(query=query)
             
             if result:
                 result['taxpayer_id'] = taxpayer_id
@@ -212,7 +330,7 @@ class GooglePlacesClient:
                 results.append({
                     'taxpayer_id': taxpayer_id,
                     'place_id': None,
-                    'search_query': f"{business_name} {address} {city} {state} {zip_code}".strip(),
+                    'search_query': query,
                     'match_status': 'error'
                 })
         
@@ -220,7 +338,7 @@ class GooglePlacesClient:
 
 
 class AsyncGooglePlacesClient:
-    """Async client for Google Places API"""
+    """Async client for Google Places API (New API v1)"""
     
     def __init__(self):
         self.base_url = google_places_config.BASE_URL
@@ -232,75 +350,115 @@ class AsyncGooglePlacesClient:
             max_retries=rate_limit_config.MAX_RETRIES,
             base_delay=rate_limit_config.RETRY_DELAY
         )
+        self.concurrent_requests = google_places_config.CONCURRENT_REQUESTS
+        self.chunk_size = google_places_config.CHUNK_SIZE
         
         if not self.api_key:
             logger.warning("Google Places API key not configured")
     
-    def _get_params(self, **kwargs) -> Dict:
-        """Build request parameters with API key"""
-        params = {'key': self.api_key}
-        params.update(kwargs)
-        return params
+    def _get_headers(self, field_mask: str = None) -> Dict:
+        """Build request headers with API key and field mask"""
+        headers = {
+            'Content-Type': 'application/json',
+            'X-Goog-Api-Key': self.api_key
+        }
+        if field_mask:
+            headers['X-Goog-FieldMask'] = field_mask
+        return headers
+    
+    def build_search_query(self, record: Dict) -> str:
+        """Build search query from record data"""
+        business_name = (
+            record.get('taxpayer_name', '') or 
+            record.get('socrata_business_name', '') or
+            record.get('business_name', '')
+        )
+        address = (
+            record.get('location_address', '') or
+            record.get('taxpayer_address', '') or
+            record.get('socrata_taxpayer_address', '')
+        )
+        city = (
+            record.get('location_city', '') or
+            record.get('taxpayer_city', '') or
+            record.get('socrata_taxpayer_city', '')
+        )
+        state = (
+            record.get('location_state', '') or
+            record.get('taxpayer_state', '') or
+            record.get('socrata_taxpayer_state', '') or
+            'TX'
+        )
+        zip_code = (
+            record.get('location_zip_code', '') or
+            record.get('taxpayer_zip', '') or
+            record.get('socrata_taxpayer_zip', '')
+        )
+        
+        query_parts = [p for p in [business_name, address, city, state, zip_code] if p]
+        return ' '.join(query_parts)
     
     async def find_place(self,
-                         business_name: str,
+                         query: str = None,
+                         business_name: str = '',
                          address: str = '',
                          city: str = '',
                          state: str = '',
                          zip_code: str = '') -> Optional[Dict]:
-        """Async find a place using text search"""
-        # Build search query
-        query_parts = [business_name]
-        if address:
-            query_parts.append(address)
-        if city:
-            query_parts.append(city)
-        if state:
-            query_parts.append(state)
-        if zip_code:
-            query_parts.append(zip_code)
+        """Async find a place using Text Search (new API)"""
+        # Build search query if not provided
+        if not query:
+            query_parts = [business_name]
+            if address:
+                query_parts.append(address)
+            if city:
+                query_parts.append(city)
+            if state:
+                query_parts.append(state)
+            if zip_code:
+                query_parts.append(zip_code)
+            query = ' '.join(query_parts)
         
-        query = ' '.join(query_parts)
+        if not query.strip():
+            return None
         
         await self.rate_limiter.wait()
         
-        url = f"{self.base_url}/findplacefromtext/json"
-        params = self._get_params(
-            input=query,
-            inputtype='textquery',
-            fields='place_id,name,formatted_address,business_status'
-        )
+        url = f"{self.base_url}/places:searchText"
+        headers = self._get_headers(field_mask='places.id')
+        body = {'textQuery': query}
         
         for attempt in range(rate_limit_config.MAX_RETRIES):
             try:
                 async with aiohttp.ClientSession() as session:
-                    async with session.get(
+                    async with session.post(
                         url,
-                        params=params,
+                        json=body,
+                        headers=headers,
                         timeout=aiohttp.ClientTimeout(total=rate_limit_config.REQUEST_TIMEOUT)
                     ) as response:
-                        response.raise_for_status()
-                        data = await response.json()
-                        
-                        if data.get('status') == 'OK' and data.get('candidates'):
-                            candidate = data['candidates'][0]
-                            return {
-                                'place_id': candidate.get('place_id'),
-                                'name': candidate.get('name'),
-                                'formatted_address': candidate.get('formatted_address'),
-                                'business_status': candidate.get('business_status'),
-                                'search_query': query,
-                                'match_status': 'found'
-                            }
-                        elif data.get('status') == 'ZERO_RESULTS':
+                        if response.status == 400:
                             return {
                                 'place_id': None,
                                 'search_query': query,
                                 'match_status': 'not_found'
                             }
+                        response.raise_for_status()
+                        data = await response.json()
+                        
+                        if data.get('places') and len(data['places']) > 0:
+                            place = data['places'][0]
+                            return {
+                                'place_id': place.get('id'),
+                                'search_query': query,
+                                'match_status': 'found'
+                            }
                         else:
-                            logger.warning(f"Find Place API error: {data.get('status')}")
-                            return None
+                            return {
+                                'place_id': None,
+                                'search_query': query,
+                                'match_status': 'not_found'
+                            }
                             
             except (aiohttp.ClientError, asyncio.TimeoutError) as e:
                 delay = self.backoff.get_delay(attempt)
@@ -312,7 +470,7 @@ class AsyncGooglePlacesClient:
     async def get_place_details(self,
                                 place_id: str,
                                 fields: List[str] = None) -> Optional[Dict]:
-        """Async get detailed information for a place"""
+        """Async get detailed information for a place (new API)"""
         if not place_id:
             return None
             
@@ -321,30 +479,27 @@ class AsyncGooglePlacesClient:
         
         await self.rate_limiter.wait()
         
-        url = f"{self.base_url}/details/json"
-        params = self._get_params(
-            place_id=place_id,
-            fields=','.join(fields)
-        )
+        url = f"{self.base_url}/places/{place_id}"
+        field_mask = ','.join(fields)
+        headers = self._get_headers(field_mask=field_mask)
         
         for attempt in range(rate_limit_config.MAX_RETRIES):
             try:
                 async with aiohttp.ClientSession() as session:
                     async with session.get(
                         url,
-                        params=params,
+                        headers=headers,
                         timeout=aiohttp.ClientTimeout(total=rate_limit_config.REQUEST_TIMEOUT)
                     ) as response:
+                        if response.status == 404:
+                            logger.warning(f"Place not found: {place_id}")
+                            return None
                         response.raise_for_status()
                         data = await response.json()
                         
-                        if data.get('status') == 'OK':
-                            result = data.get('result', {})
-                            result['place_id'] = place_id
-                            return result
-                        else:
-                            logger.warning(f"Place Details API error: {data.get('status')}")
-                            return None
+                        result = self._transform_place_details(data)
+                        result['place_id'] = place_id
+                        return result
                             
             except (aiohttp.ClientError, asyncio.TimeoutError) as e:
                 delay = self.backoff.get_delay(attempt)
@@ -352,6 +507,55 @@ class AsyncGooglePlacesClient:
                 await asyncio.sleep(delay)
         
         return None
+    
+    def _transform_place_details(self, data: Dict) -> Dict:
+        """Transform new API response to consistent field names"""
+        result = {}
+        
+        if 'displayName' in data:
+            result['name'] = data['displayName'].get('text', '')
+        if 'formattedAddress' in data:
+            result['formatted_address'] = data['formattedAddress']
+        if 'nationalPhoneNumber' in data:
+            result['formatted_phone_number'] = data['nationalPhoneNumber']
+        if 'internationalPhoneNumber' in data:
+            result['international_phone_number'] = data['internationalPhoneNumber']
+        if 'websiteUri' in data:
+            result['website'] = data['websiteUri']
+        if 'googleMapsUri' in data:
+            result['url'] = data['googleMapsUri']
+        if 'rating' in data:
+            result['rating'] = data['rating']
+        if 'userRatingCount' in data:
+            result['user_ratings_total'] = data['userRatingCount']
+        if 'businessStatus' in data:
+            result['business_status'] = data['businessStatus']
+        if 'types' in data:
+            result['types'] = data['types']
+        if 'regularOpeningHours' in data:
+            result['opening_hours'] = data['regularOpeningHours']
+        if 'location' in data:
+            result['geometry'] = {
+                'location': {
+                    'lat': data['location'].get('latitude'),
+                    'lng': data['location'].get('longitude')
+                }
+            }
+        if 'priceLevel' in data:
+            price_map = {
+                'PRICE_LEVEL_FREE': 0,
+                'PRICE_LEVEL_INEXPENSIVE': 1,
+                'PRICE_LEVEL_MODERATE': 2,
+                'PRICE_LEVEL_EXPENSIVE': 3,
+                'PRICE_LEVEL_VERY_EXPENSIVE': 4
+            }
+            result['price_level'] = price_map.get(data['priceLevel'], None)
+        if 'reviews' in data:
+            result['reviews'] = data['reviews']
+        if 'photos' in data:
+            result['photos'] = data['photos']
+        
+        return result
     
     async def batch_find_places(self,
                                 records: List[Dict],
@@ -367,27 +571,16 @@ class AsyncGooglePlacesClient:
             List of results with place_ids
         """
         if max_concurrent is None:
-            max_concurrent = google_places_config.CONCURRENT_REQUESTS
+            max_concurrent = self.concurrent_requests
         
         semaphore = asyncio.Semaphore(max_concurrent)
         
         async def find_with_semaphore(record: Dict) -> Dict:
             async with semaphore:
-                # Extract fields from polished data format
-                business_name = record.get('socrata_business_name', '') or record.get('taxpayer_name', '')
-                address = record.get('socrata_taxpayer_address', '') or record.get('taxpayer_address', '')
-                city = record.get('socrata_taxpayer_city', '') or record.get('taxpayer_city', '')
-                state = record.get('socrata_taxpayer_state', '') or record.get('taxpayer_state', 'TX')
-                zip_code = record.get('socrata_taxpayer_zip', '') or record.get('taxpayer_zip', '')
+                query = self.build_search_query(record)
                 taxpayer_id = record.get('taxpayer_number', '') or record.get('taxpayer_id', '')
                 
-                result = await self.find_place(
-                    business_name=business_name,
-                    address=address,
-                    city=city,
-                    state=state,
-                    zip_code=zip_code
-                )
+                result = await self.find_place(query=query)
                 
                 if result:
                     result['taxpayer_id'] = taxpayer_id
@@ -396,7 +589,7 @@ class AsyncGooglePlacesClient:
                     return {
                         'taxpayer_id': taxpayer_id,
                         'place_id': None,
-                        'search_query': f"{business_name} {address} {city} {state} {zip_code}".strip(),
+                        'search_query': query,
                         'match_status': 'error'
                     }
         
@@ -421,7 +614,7 @@ class AsyncGooglePlacesClient:
             List of place details
         """
         if max_concurrent is None:
-            max_concurrent = google_places_config.CONCURRENT_REQUESTS
+            max_concurrent = self.concurrent_requests
         
         semaphore = asyncio.Semaphore(max_concurrent)
         

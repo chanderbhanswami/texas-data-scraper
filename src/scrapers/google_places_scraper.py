@@ -233,7 +233,11 @@ class GooglePlacesScraper:
     
     def get_scraper_stats(self) -> Dict:
         """Get scraper statistics"""
-        return self.stats.copy()
+        stats = self.stats.copy()
+        stats['client_type'] = 'async' if self.use_async else 'sync'
+        stats['gpu_enabled'] = self.gpu is not None and self.gpu.gpu_available if self.gpu else False
+        stats['api_version'] = 'v1 (places.googleapis.com)'
+        return stats
 
 
 class SmartGooglePlacesScraper(GooglePlacesScraper):

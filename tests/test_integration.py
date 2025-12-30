@@ -108,7 +108,7 @@ class TestOutletEnrichmentIntegration:
 
 
 class TestGooglePlacesIntegration:
-    """Integration tests for Google Places workflow (v1.5.0)"""
+    """Integration tests for Google Places workflow (v1.5.0 - New API v1)"""
     
     @pytest.mark.integration
     def test_search_query_building(self):
@@ -117,8 +117,9 @@ class TestGooglePlacesIntegration:
         
         mock_config = Mock()
         mock_config.API_KEY = 'test_key'
-        mock_config.FIND_PLACE_ENDPOINT = 'https://test.com/find'
-        mock_config.PLACE_DETAILS_ENDPOINT = 'https://test.com/details'
+        mock_config.BASE_URL = 'https://places.googleapis.com/v1'
+        mock_config.TEXT_SEARCH_ENDPOINT = 'https://places.googleapis.com/v1/places:searchText'
+        mock_config.PLACE_DETAILS_ENDPOINT = 'https://places.googleapis.com/v1/places'
         mock_config.rate_limit = 600
         mock_config.CONCURRENT_REQUESTS = 5
         mock_config.CHUNK_SIZE = 50

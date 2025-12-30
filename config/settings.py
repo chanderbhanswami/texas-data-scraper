@@ -90,14 +90,15 @@ class ComptrollerConfig:
 
 
 class GooglePlacesConfig:
-    """Google Places API Configuration"""
+    """Google Places API Configuration (New API v1)"""
+    # New API base URL (places.googleapis.com instead of maps.googleapis.com)
     BASE_URL = os.getenv('GOOGLE_PLACES_BASE_URL', 
-                         'https://maps.googleapis.com/maps/api/place')
+                         'https://places.googleapis.com/v1')
     API_KEY = os.getenv('GOOGLE_PLACES_API_KEY', '')
     
-    # Endpoints
-    FIND_PLACE_ENDPOINT = f"{BASE_URL}/findplacefromtext/json"
-    PLACE_DETAILS_ENDPOINT = f"{BASE_URL}/details/json"
+    # Endpoints (new API format)
+    TEXT_SEARCH_ENDPOINT = f"{BASE_URL}/places:searchText"
+    PLACE_DETAILS_ENDPOINT = f"{BASE_URL}/places"  # + /{place_id}
     
     # Billing mode (higher limits with billing enabled)
     BILLING_ENABLED = os.getenv('GOOGLE_PLACES_BILLING', 'false').lower() == 'true'

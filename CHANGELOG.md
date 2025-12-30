@@ -5,6 +5,37 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.1] - 2025-12-30
+
+### Changed - **Google Places API Migration to New API v1**
+- **BREAKING**: Migrated from legacy Places API to new Places API (v1)
+  - Old: `maps.googleapis.com/maps/api/place` (legacy)
+  - New: `places.googleapis.com/v1` (current)
+- **Text Search** now uses POST with JSON body instead of GET with query params
+- **Place Details** now uses path parameter `/places/{id}` instead of `?place_id=`
+- **Authentication** now uses `X-Goog-Api-Key` header instead of `key` query param
+- **Field Masks** now use `X-Goog-FieldMask` header for field selection
+
+### Updated
+- `src/api/google_places_client.py` - Complete rewrite for new API v1
+  - New endpoints: `/places:searchText` (POST), `/places/{id}` (GET)
+  - `_transform_place_details()` maps new field names to legacy format
+  - Response field mapping: `displayName` → `name`, `nationalPhoneNumber` → `formatted_phone_number`
+- `config/settings.py` - New BASE_URL for places.googleapis.com/v1
+- `config/.env.example` - Updated with new API v1 base URL
+- `tests/test_google_places_api.py` - Updated for new API responses
+- `tests/test_scrapers.py` - Updated mock config for new API
+- `tests/test_integration.py` - Updated mock config for new API
+- `scripts/api_tester.py` - Shows API v1 in config test
+
+### Note
+If you have `.env` configured with the old base URL, update it:
+```env
+GOOGLE_PLACES_BASE_URL=https://places.googleapis.com/v1
+```
+
+---
+
 ## [1.5.0] - 2025-12-30
 
 ### Added

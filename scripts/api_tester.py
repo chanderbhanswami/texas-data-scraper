@@ -531,15 +531,19 @@ class APITester:
             }
     
     def test_google_places_config(self) -> dict:
-        """Test Google Places configuration settings"""
+        """Test Google Places configuration settings (New API v1)"""
         try:
             rate_limit = google_places_config.rate_limit
             concurrent = google_places_config.CONCURRENT_REQUESTS
             chunk_size = google_places_config.CHUNK_SIZE
+            base_url = google_places_config.BASE_URL
+            
+            # Verify new API v1 URL
+            is_new_api = 'places.googleapis.com' in base_url
             
             return {
                 'success': True,
-                'message': f'rate_limit={rate_limit}, concurrent={concurrent}, chunk_size={chunk_size}'
+                'message': f'API v1: {is_new_api}, rate_limit={rate_limit}, concurrent={concurrent}'
             }
         except Exception as e:
             return {
