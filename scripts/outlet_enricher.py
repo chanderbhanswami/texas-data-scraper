@@ -17,7 +17,7 @@ from rich.table import Table
 from rich.progress import Progress, SpinnerColumn, TextColumn
 
 from src.processors.outlet_enricher import OutletEnricher, AdvancedOutletEnricher, OUTLET_FIELDS
-from src.utils.file_exporter import FileExporter
+from src.exporters.file_exporter import FileExporter
 from src.processors.data_validator import DataValidator
 from src.utils.logger import get_logger
 from src.scrapers.gpu_accelerator import get_gpu_accelerator
