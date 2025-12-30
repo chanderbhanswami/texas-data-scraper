@@ -310,15 +310,15 @@ class OutletEnricherCLI:
         
         try:
             # Export JSON
-            json_path = self.exporter.export_json(data, export_name)
+            json_path = self.exporter.export_json(data, f"{export_name}.json")
             console.print(f"[green]✓ JSON: {json_path.name}[/green]")
             
             # Export CSV
-            csv_path = self.exporter.export_csv(data, export_name)
+            csv_path = self.exporter.export_csv(data, f"{export_name}.csv")
             console.print(f"[green]✓ CSV: {csv_path.name}[/green]")
             
             # Export Excel
-            excel_path = self.exporter.export_excel(data, export_name)
+            excel_path = self.exporter.export_excel(data, f"{export_name}.xlsx")
             console.print(f"[green]✓ Excel: {excel_path.name}[/green]")
             
             console.print(f"\n[bold green]✓ Exported {len(data):,} polished records[/bold green]")
