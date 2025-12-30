@@ -27,7 +27,7 @@
 
 </div>
 
-A comprehensive, production-ready toolkit for scraping and processing data from Texas government APIs including the Socrata Open Data Portal and Texas Comptroller API. Features GPU acceleration (CUDA/cuDNN), intelligent data merging, and automated deduplication and precise business information through Google Places API.
+A comprehensive, production-ready toolkit for scraping and processing data from Texas government APIs including the Socrata Open Data Portal and Texas Comptroller API. Features GPU acceleration (CUDA/cuDNN), intelligent data merging, automated deduplication and precise business information through Google Places API.
 
 ## Features
 
