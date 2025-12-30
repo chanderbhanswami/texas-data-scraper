@@ -64,6 +64,10 @@ exports/deduplicated/*.json
 exports/deduplicated/*.csv
 exports/deduplicated/*.xlsx
 exports/deduplicated/*.checksum
+exports/polished/*.json
+exports/polished/*.csv
+exports/polished/*.xlsx
+exports/polished/*.checksum
 
 # Keep directory structure
 !exports/.gitkeep
@@ -71,6 +75,7 @@ exports/deduplicated/*.checksum
 !exports/comptroller/.gitkeep
 !exports/combined/.gitkeep
 !exports/deduplicated/.gitkeep
+!exports/polished/.gitkeep
 
 # Logs
 logs/*.log
