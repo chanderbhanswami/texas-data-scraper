@@ -147,7 +147,7 @@ class GooglePlacesClient:
         if not query.strip():
             return None
         
-        self.rate_limiter.wait()
+        self.rate_limiter.wait_if_needed()
         
         try:
             # New API: POST to /v1/places:searchText
@@ -216,7 +216,7 @@ class GooglePlacesClient:
         if fields is None:
             fields = DEFAULT_PLACE_DETAILS_FIELDS
         
-        self.rate_limiter.wait()
+        self.rate_limiter.wait_if_needed()
         
         try:
             # New API: GET /v1/places/{place_id}
@@ -424,7 +424,7 @@ class AsyncGooglePlacesClient:
         if not query.strip():
             return None
         
-        await self.rate_limiter.wait()
+        await self.rate_limiter.wait_if_needed()
         
         url = f"{self.base_url}/places:searchText"
         headers = self._get_headers(field_mask='places.id')
@@ -479,7 +479,7 @@ class AsyncGooglePlacesClient:
         if fields is None:
             fields = DEFAULT_PLACE_DETAILS_FIELDS
         
-        await self.rate_limiter.wait()
+        await self.rate_limiter.wait_if_needed()
         
         url = f"{self.base_url}/places/{place_id}"
         field_mask = ','.join(fields)
