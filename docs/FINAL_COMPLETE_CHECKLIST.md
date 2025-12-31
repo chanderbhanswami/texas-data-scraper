@@ -263,6 +263,18 @@
   - [x] `GOOGLE_PLACES_CONCURRENT_REQUESTS`
   - [x] `GOOGLE_PLACES_CHUNK_SIZE`
 
+### ✅ New Places API v1 Migration (v1.5.1)
+- [x] **API Migration** - Migrated from legacy to new Places API (v1)
+  - [x] Old: `maps.googleapis.com/maps/api/place` (legacy)
+  - [x] New: `places.googleapis.com/v1` (current)
+- [x] **Text Search** - POST with JSON body `{"textQuery": "..."}`
+- [x] **Place Details** - Path parameter `/places/{id}`
+- [x] **Header Authentication** - `X-Goog-Api-Key` + `X-Goog-FieldMask` headers
+- [x] **Field Transformation** - Maps new API fields to legacy-compatible format
+  - [x] `displayName` → `name`
+  - [x] `nationalPhoneNumber` → `formatted_phone_number`
+  - [x] `userRatingCount` → `user_ratings_total`
+
 ---
 
 ## 🔍 VERIFICATION COMMANDS

@@ -56,6 +56,7 @@ A comprehensive, production-ready toolkit for scraping and processing data from 
 - **Google Places API Integration**: Get phone, website, ratings, hours from Google (v1.5.0)
 - **Two-Step Places Workflow**: Find Place IDs → Get Place Details (v1.5.0)
 - **Final Data Combiner**: Merge Google Places with polished taxpayer data (v1.5.0)
+- **New Places API v1**: Migrated to `places.googleapis.com/v1` with header-based auth (v1.5.1)
 
 ### Data Sources
 - Franchise Tax Permit Holders

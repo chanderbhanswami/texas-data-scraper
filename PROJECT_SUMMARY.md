@@ -134,6 +134,15 @@ A **production-ready, fully-featured** data scraping toolkit with:
 - ✅ **Data Combiner Option 13** - Merge Google Places with polished data
 - ✅ **Configurable Settings** - API key, billing mode, rate limits
 
+### ✅ New Places API v1 Migration (v1.5.1)
+- ✅ **API Migration** - Migrated from legacy to new Places API (v1)
+  - Old: `maps.googleapis.com/maps/api/place` (legacy)
+  - New: `places.googleapis.com/v1` (current)
+- ✅ **Text Search** - Now uses POST with JSON body `{"textQuery": "..."}`
+- ✅ **Place Details** - Now uses path parameter `/places/{id}`
+- ✅ **Header Authentication** - Uses `X-Goog-Api-Key` and `X-Goog-FieldMask` headers
+- ✅ **Field Transformation** - Maps new API fields to legacy-compatible format
+
 ## 📂 Complete File Structure
 
 ```

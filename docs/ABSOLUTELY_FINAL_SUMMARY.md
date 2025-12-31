@@ -201,6 +201,7 @@
 - [x] GooglePlacesClient (v1.5.0)
 - [x] GooglePlacesScraper (v1.5.0)
 - [x] SmartGooglePlacesScraper (v1.5.0)
+- [x] New Places API v1 Migration (v1.5.1)
 - [x] DataValidator
 - [x] Field standardization
 - [x] Data cleaning
@@ -407,8 +408,8 @@ python scripts/api_tester.py
 ║  Documentation: Complete                                 ║
 ║                                                          ║
 ║  Ready For: Production Deployment                        ║
-║  Version: 1.5.0                                          ║
-║  Date: December 30, 2025                                 ║
+║  Version: 1.5.1                                          ║
+║  Date: December 31, 2025                                 ║
 ║                                                          ║
 ╚══════════════════════════════════════════════════════════╝
 ```

@@ -232,7 +232,17 @@ texas-data-scraper/
   - `GOOGLE_PLACES_BILLING` - true/false for rate limits
   - `GOOGLE_PLACES_RATE_LIMIT_*` - Rate limiting
 
-### 13. Future Pipeline (Roadmap)
+### 13. New Places API v1 Migration (v1.5.1)
+- **API Migration** - Migrated from legacy to new Places API (v1)
+  - Old: `maps.googleapis.com/maps/api/place` (legacy)
+  - New: `places.googleapis.com/v1` (current)
+- **Text Search** - Now uses POST with JSON body `{"textQuery": "..."}`
+- **Place Details** - Now uses path parameter `/places/{id}`
+- **Header Authentication** - `X-Goog-Api-Key` + `X-Goog-FieldMask` headers
+- **Field Transformation** - Maps new API response fields to legacy-compatible format
+  - `displayName` → `name`, `nationalPhoneNumber` → `formatted_phone_number`
+
+### 14. Future Pipeline (Roadmap)
 - **Phase 1** (Complete): Socrata + Comptroller data scraping ✅
 - **Phase 2** (Complete): Google Places API integration ✅
 - **Phase 3** (Planned): Clearbit API for company enrichment (emails, contacts, social media)
