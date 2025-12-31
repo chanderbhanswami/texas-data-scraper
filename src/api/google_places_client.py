@@ -45,7 +45,8 @@ class GooglePlacesClient:
         self.base_url = google_places_config.BASE_URL
         self.api_key = google_places_config.API_KEY
         self.rate_limiter = RateLimiter(
-            requests_per_minute=google_places_config.rate_limit
+            max_requests=google_places_config.rate_limit,
+            time_window=60  # Per minute
         )
         self.session = requests.Session()
         
@@ -344,7 +345,8 @@ class AsyncGooglePlacesClient:
         self.base_url = google_places_config.BASE_URL
         self.api_key = google_places_config.API_KEY
         self.rate_limiter = AsyncRateLimiter(
-            requests_per_minute=google_places_config.rate_limit
+            max_requests=google_places_config.rate_limit,
+            time_window=60  # Per minute
         )
         self.backoff = BackoffRetry(
             max_retries=rate_limit_config.MAX_RETRIES,

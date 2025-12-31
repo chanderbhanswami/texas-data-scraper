@@ -29,7 +29,7 @@ from .menu import (
     create_panel
 )
 from .progress_manager import ProgressManager
-from .checksum import generate_checksum, verify_checksum
+from .checksum import generate_export_checksum, verify_export_file, FileChecksum
 
 __all__ = [
     'get_logger',
@@ -57,6 +57,7 @@ __all__ = [
     'display_stats',
     'create_panel',
     'ProgressManager',
-    'generate_checksum',
-    'verify_checksum'
+    'generate_export_checksum',
+    'verify_export_file',
+    'FileChecksum'
 ]

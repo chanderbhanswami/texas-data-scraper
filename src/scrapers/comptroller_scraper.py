@@ -453,11 +453,15 @@ class SmartComptrollerScraper(ComptrollerScraper):
     
     def get_cache_stats(self) -> Dict:
         """Get cache statistics"""
+        # Calculate cache size from disk files
+        cache_size = 0
+        for f in self.cache_dir.glob('*.json'):
+            cache_size += f.stat().st_size
+        
         return {
-            'cached_items': len(self.cache),
-            'cache_size_bytes': sum(
-                len(str(v)) for v in self.cache.values()
-            )
+            'cached_items': len(self.cache_index),
+            'cache_size_bytes': cache_size,
+            'cache_directory': str(self.cache_dir)
         }
     
     def scrape_with_progress(self,
